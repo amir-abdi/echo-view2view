@@ -1,5 +1,7 @@
+core
 results
 datasets
+wandb
 
 # Image and model files
 *.jpg
