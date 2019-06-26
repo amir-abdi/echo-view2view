@@ -1,5 +1,4 @@
 import datetime
-import matplotlib
 import numpy as np
 import os
 import json
@@ -142,8 +141,7 @@ class PatchGAN:
                 self.step += 1
 
     def gen_valid_results(self, step_num, prefix=''):
-        os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR),
-                    exist_ok=True)
+        os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR), exist_ok=True)
 
         targets, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
         fake_imgs = self.generator.predict(inputs)

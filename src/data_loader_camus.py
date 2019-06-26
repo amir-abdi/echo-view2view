@@ -88,6 +88,7 @@ class DataLoaderCamus:
             target_imgs, input_imgs= self._get_batch(batch_paths)
             target_imgs = target_imgs * self.target_rescale
             input_imgs = input_imgs * self.input_rescale
+            start_idx += batch_size
 
             yield target_imgs, input_imgs
 
