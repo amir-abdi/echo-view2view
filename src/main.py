@@ -4,7 +4,7 @@ from absl import flags
 from keras import backend as K
 
 from data_loader_camus import DataLoaderCamus
-from patch_gan import Pix2Pix
+from patch_gan import PatchGAN
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
@@ -47,8 +47,8 @@ def main(argv):
         input_name=config['INPUT_NAME'],
         target_name=config['TARGET_NAME'],
         img_res=config['IMAGE_RES'],
-        target_rescale=config['IMAGE_TRANS'],
-        input_rescale=config['MASK_TRANS'],
+        target_rescale=config['TARGET_TRANS'],
+        input_rescale=config['INPUT_TRANS'],
         labels=config['LABELS'],
         train_ratio=0.05
     )
@@ -59,16 +59,16 @@ def main(argv):
         wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoGen')
 
     # Initialize GAN
-    pix2pix_model = Pix2Pix(data_loader, config, FLAGS.use_wandb)
+    model = PatchGAN(data_loader, config, FLAGS.use_wandb)
 
     # load trained models if they exist
     if FLAGS.ckpt_load is not None:
-        pix2pix_model.load_model(FLAGS.ckpt_load)
+        model.load_model(FLAGS.ckpt_load)
 
     if FLAGS.test:
-        pix2pix_model.test(True)
+        model.test()
     else:
-        pix2pix_model.train()
+        model.train()
 
 
 if __name__ == '__main__':

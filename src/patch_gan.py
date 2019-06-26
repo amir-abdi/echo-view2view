@@ -10,6 +10,7 @@ from keras.optimizers import Adam
 from keras import backend as K
 
 from models import Discriminator, Generator
+from utils import gen_fig
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
@@ -17,7 +18,7 @@ TEST_DIR = 'test_images'
 MODELS_DIR = 'saved_models'
 
 
-class Pix2Pix:
+class PatchGAN:
     def __init__(self, data_loader, config, use_wandb):
         # Configure data loader
         self.result_name = config['NAME']
@@ -33,8 +34,8 @@ class Pix2Pix:
         assert self.img_rows == self.img_cols, 'The current code only works with same values for img_rows and img_cols'
 
         # scaling
-        self.img_trans = config['IMAGE_TRANS']
-        self.mask_trans = config['MASK_TRANS']
+        self.target_trans = config['TARGET_TRANS']
+        self.input_trans = config['INPUT_TRANS']
 
         # Calculate output shape of D (PatchGAN)
         patch_size = config['PATCH_SIZE']
@@ -61,15 +62,15 @@ class Pix2Pix:
         self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation).build()
 
         # Input images and their conditioning images
-        input_img = Input(shape=self.img_shape)
-        input_mask = Input(shape=self.img_shape)
+        input_target = Input(shape=self.img_shape)
+        input_input = Input(shape=self.img_shape)
 
         # Turn of discriminator training for the combined model (i.e. generator)
-        fake_img = self.generator(input_mask)
+        fake_img = self.generator(input_input)
         self.discriminator.trainable = False
-        valid = self.discriminator([fake_img, input_mask])
+        valid = self.discriminator([fake_img, input_input])
 
-        self.combined = Model(inputs=[input_img, input_mask], outputs=[valid, fake_img])
+        self.combined = Model(inputs=[input_target, input_input], outputs=[valid, fake_img])
 
         self.combined.compile(loss=['mse', 'mae'],
                               optimizer=self.optimizer_G,
@@ -104,17 +105,17 @@ class Pix2Pix:
         print(valid.shape)
 
         while self.step < max_iter:
-            for imgs, masks in self.data_loader.get_random_batch(batch_size):
+            for targets, inputs in self.data_loader.get_random_batch(batch_size):
                 #  ---------- Train Discriminator -----------
-                fake_imgs = self.generator.predict(masks)
-                d_loss_real = self.discriminator.train_on_batch([imgs, masks], valid)
-                d_loss_fake = self.discriminator.train_on_batch([fake_imgs, masks], fake)
+                fake_imgs = self.generator.predict(inputs)
+                d_loss_real = self.discriminator.train_on_batch([targets, inputs], valid)
+                d_loss_fake = self.discriminator.train_on_batch([fake_imgs, inputs], fake)
                 d_loss = 0.5 * np.add(d_loss_real[0], d_loss_fake[0])
                 d_acc_real = d_loss_real[1] * 100
                 d_acc_fake = d_loss_fake[1] * 100
 
                 # ----------- Train Generator -----------
-                g_loss = self.combined.train_on_batch([imgs, masks], [valid, imgs])
+                g_loss = self.combined.train_on_batch([targets, inputs], [valid, targets])
 
                 # Logging
                 if self.step % log_interval == 0:
@@ -141,33 +142,15 @@ class Pix2Pix:
                 self.step += 1
 
     def gen_valid_results(self, step_num, prefix=''):
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
         os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR),
                     exist_ok=True)
-        r, c = 3, 3
 
-        input_img, input_mask = next(self.data_loader.get_random_batch(batch_size=c, stage='valid'))
-        fake_img = self.generator.predict(input_mask)
-
-        # Rescale images to original scale
-        input_img = input_img / self.img_trans
-        input_mask = input_mask / self.mask_trans
-        fake_img = fake_img / self.img_trans
-        gen_imgs = np.concatenate([input_mask, fake_img, input_img])
-
-        titles = ['Condition', 'Generated', 'Original']
-        fig, axs = plt.subplots(r, c)
-        cnt = 0
-        for i in range(r):
-            for j in range(c):
-                axs[i, j].imshow(gen_imgs[cnt, :, :, 0], cmap='gray')
-                axs[i, j].set_title(titles[i])
-                axs[i, j].axis('off')
-                cnt += 1
-
+        targets, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
+        fake_imgs = self.generator.predict(inputs)
+        fig = gen_fig(inputs / self.input_trans,
+                      fake_imgs / self.target_trans,
+                      targets / self.target_trans)
         fig.savefig('%s/%s/%s/%s_%d.png' % (RESULT_DIR, self.result_name, VAL_DIR, prefix, step_num))
-        plt.close()
 
         if self.use_wandb:
             import wandb
@@ -203,38 +186,13 @@ class Pix2Pix:
         save(self.discriminator, 'discriminator')
         print('Model saved in {}'.format(model_dir))
 
-    def test(self, is_testing=False):
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
-
-        image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR)
-        image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name,
-                                  TEST_DIR) if is_testing else image_dir
+    def test(self):
+        image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
         os.makedirs(image_dir, exist_ok=True)
 
-        r, c = 3, 3
-        for batch_i, (imgs, masks) in enumerate(self.data_loader.get_iterative_batch(3, stage='test')):
-            fake_imgs = self.generator.predict(masks)
-
-            # Rescale images to original scale
-            imgs = imgs / self.img_trans[0]
-            masks = masks / self.mask_trans[0]
-            fake_imgs = fake_imgs / self.img_trans[0]
-
-            gen_imgs = np.concatenate([masks, fake_imgs, imgs])
-
-            titles = ['Condition', 'Generated', 'Original']
-            fig, axs = plt.subplots(r, c)
-            cnt = 0
-            for i in range(r):
-                for j in range(c):
-                    axs[i, j].imshow(gen_imgs[cnt, :, :, 0], cmap='gray')
-                    axs[i, j].set_title(titles[i])
-                    axs[i, j].axis('off')
-                    cnt += 1
+        for batch_i, (targets, inputs) in enumerate(self.data_loader.get_iterative_batch(3, stage='test')):
+            fake_imgs = self.generator.predict(inputs)
+            fig = gen_fig(inputs / self.input_trans,
+                          fake_imgs / self.target_trans,
+                          targets / self.target_trans)
             fig.savefig('%s/%d.png' % (image_dir, batch_i))
-            plt.close()
-
-    def generate(self, png_image):
-        fake = self.generator.predict(png_image)
-        return fake

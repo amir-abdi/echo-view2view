@@ -1,7 +1,7 @@
 from keras.layers import Input, Dropout, Concatenate
 from keras.layers import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
-from keras.layers.convolutional import UpSampling2D, Conv2D
+from keras.layers.convolutional import Conv2DTranspose, Conv2D
 from keras.models import Model
 
 
@@ -21,9 +21,9 @@ class Generator:
                 d = BatchNormalization(momentum=0.8)(d)
             return d
 
-        def deconv2d(layer_input, skip_input, filters, f_size=4,
-                     dropout_rate=0):
-            u = UpSampling2D(size=2)(layer_input)
+        def deconv2d(layer_input, skip_input, filters, f_size=4, dropout_rate=0):
+            u = Conv2DTranspose(filters, kernel_size=f_size, strides=(2, 2),
+                                padding='same', activation='linear')(layer_input)
             u = Conv2D(filters, kernel_size=f_size, strides=1,
                        padding='same', activation='relu')(u)
             if dropout_rate:
@@ -51,8 +51,10 @@ class Generator:
         u4 = deconv2d(u3, d3, self.filters * 4)
         u5 = deconv2d(u4, d2, self.filters * 2)
         u6 = deconv2d(u5, d1, self.filters)
+        u7 = Conv2DTranspose(self.channels, kernel_size=4, strides=(2, 2),
+                             padding='same', activation='linear')(u6)
 
-        u7 = UpSampling2D(size=2)(u6)
+        # added conv layers after the deconvs to avoid the pixelated outputs
         output_img = Conv2D(self.channels, kernel_size=4,
                             strides=1, padding='same',
                             activation=self.output_activation)(u7)
@@ -74,19 +76,16 @@ class Discriminator:
                 d = BatchNormalization(momentum=0.8)(d)
             return d
 
-        input_img = Input(shape=self.img_shape)
-        input_mask = Input(shape=self.img_shape)
-        combined_imgs = Concatenate(axis=-1)([input_img, input_mask])
+        input_targets = Input(shape=self.img_shape)
+        input_inputs = Input(shape=self.img_shape)
+        combined_imgs = Concatenate(axis=-1)([input_targets, input_inputs])
 
         # 4 d_layers with stride of 2 --> output is 1/16 in each dimension
         d = d_layer(combined_imgs, self.filters, bn=False)
 
         for i in range(self.num_layers - 1):
-            d = d_layer(d, self.filters * (2 ** (i+1)))
-        # d2 = d_layer(d1, self.filters * 2)
-        # d3 = d_layer(d2, self.filters * 4)
-        # d4 = d_layer(d3, self.filters * 8)
+            d = d_layer(d, self.filters * (2 ** (i + 1)))
 
         validity = Conv2D(1, kernel_size=4, strides=1, padding='same')(d)
 
-        return Model([input_img, input_mask], validity)
+        return Model([input_targets, input_inputs], validity)
