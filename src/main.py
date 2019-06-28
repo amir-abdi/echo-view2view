@@ -42,6 +42,11 @@ def main(argv):
     config['NAME'] += '_' + name
 
     # Initialize data loader
+    augmentation = dict()
+    for key, value in config.items():
+        if 'AUG_' in key:
+            augmentation[key] = value
+
     data_loader = DataLoaderCamus(
         dataset_path=FLAGS.dataset_path,
         input_name=config['INPUT_NAME'],
@@ -50,7 +55,8 @@ def main(argv):
         target_rescale=config['TARGET_TRANS'],
         input_rescale=config['INPUT_TRANS'],
         labels=config['LABELS'],
-        train_ratio=0.05
+        train_ratio=0.05,
+        augment=augmentation
     )
 
     if FLAGS.use_wandb:

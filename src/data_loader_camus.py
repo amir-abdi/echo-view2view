@@ -1,23 +1,24 @@
-import scipy
 from glob import glob
 import numpy as np
 import os
 import skimage.io as io
 from PIL import Image
 from prefetch_generator import background
+from keras.preprocessing.image import ImageDataGenerator
 
 NUM_PREFETCH = 10
 
 
 class DataLoaderCamus:
     def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio,
-                 labels):
+                 labels, augment):
         self.dataset_path = dataset_path
         self.img_res = tuple(img_res)
         self.target_rescale = target_rescale
         self.input_rescale = input_rescale
         self.input_name = input_name
         self.target_name = target_name
+        self.augment = augment
 
         patients = sorted(glob(os.path.join(self.dataset_path, 'training', '*')))
         num = len(patients)
@@ -32,14 +33,15 @@ class DataLoaderCamus:
         all_labels = {0, 1, 2, 3}
         self.not_labels = all_labels - set(labels)
 
-        # from keras.preprocessing.image import ImageDataGenerator
-        # data_gen_args = dict(rotation_range=10,
-        #                      shear_range=0.01,
-        #                      zoom_range=[0.9, 1.1],
-        #                      fill_mode='constant',
-        #                      cval=0.,
-        #                      data_format='channels_last')
-        # self.image_gen = ImageDataGenerator(**data_gen_args, rescale=self.img_rescale)
+        data_gen_args = dict(rotation_range=augment['AUG_ROTATION_RANGE_DEGREES'],
+                             width_shift_range=augment['AUG_WIDTH_SHIFT_RANGE_RATIO'],
+                             height_shift_range=augment['AUG_HEIGHT_SHIFT_RANGE_RATIO'],
+                             shear_range=augment['AUG_SHEAR_RANGE_ANGLE'],
+                             zoom_range=augment['AUG_ZOOM_RANGE_RATIO'],
+                             fill_mode='constant',
+                             cval=0.,
+                             data_format='channels_last')
+        self.datagen = ImageDataGenerator(**data_gen_args)
 
     def read_mhd(self, img_path, is_gt):
         if not os.path.exists(img_path):
@@ -96,14 +98,20 @@ class DataLoaderCamus:
         target_imgs = []
         input_imgs = []
         for path in paths_batch:
+            transform = self.datagen.get_random_transform(img_shape=self.img_res)
             head, patient_id = os.path.split(path)
             target_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name))
             input_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
 
             target_img = self.read_mhd(target_path, '_gt' in self.target_name)
+            target_img = self.datagen.apply_transform(target_img, transform)
             target_imgs.append(target_img)
 
+            if not self.augment['AUG_SAME_FOR_BOTH']:
+                transform = self.datagen.get_random_transform(img_shape=self.img_res)
+
             input_img = self.read_mhd(input_path, '_gt' in self.input_name)
+            input_img = self.datagen.apply_transform(input_img, transform)
             input_imgs.append(input_img)
 
         return np.array(target_imgs), np.array(input_imgs)
