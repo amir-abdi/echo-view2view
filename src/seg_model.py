@@ -45,7 +45,7 @@ class PatchGAN:
         # Number of filters in the first layer of G and D
         self.gf = config['FIRST_LAYERS_FILTERS']
         self.df = config['FIRST_LAYERS_FILTERS']
-	self.
+        self.skipconnections_generator = config['SKIP_CONNECTIONS_GENERATOR']
         self.output_activation = config['GEN_OUTPUT_ACT']
         self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
         self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
@@ -59,7 +59,7 @@ class PatchGAN:
 
         # Build the generator
         print('Building generator')
-        self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation).build()
+        self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation, self.skipconnections_generator).build()
 
         # Input images and their conditioning images
         input_target = Input(shape=self.img_shape)

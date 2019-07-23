@@ -2,9 +2,24 @@ import json
 from absl import app
 from absl import flags
 from keras import backend as K
-
+import os
 from data_loader_camus import DataLoaderCamus
 from patch_gan import PatchGAN
+import matplotlib
+# matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+from keras.utils import multi_gpu_model
+# import pdb
+# pdb.set_trace()
+os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
+from keras.optimizers import tf
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.Session(config=config)
+K.set_session(sess)
+
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
@@ -15,25 +30,31 @@ flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
 flags.mark_flag_as_required('dataset_path')
 flags.mark_flag_as_required('config')
 
+
 FLAGS = flags.FLAGS
 
 
-def set_keras_backend(backend):
-    print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
-    print('Setting backend to {}...'.format(backend))
-    if backend == 'tensorflow':
-        K.get_session().close()
-        cfg = K.tf.ConfigProto()
-        cfg.gpu_options.allow_growth = True
-        K.set_session(K.tf.Session(config=cfg))
-        K.clear_session()
+# def set_keras_backend(backend):
+#
+#     print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
+#     print('Setting backend to {}...'.format(backend))
+#     if backend == 'tensorflow':
+#         K.get_session().close()
+#         cfg = K.tf.ConfigProto()
+#         cfg.gpu_options.allow_growth = True
+#         K.set_session(K.tf.Session(config=cfg))
+#         K.clear_session()
+
+
 
 
 def main(argv):
-    set_keras_backend('tensorflow')
-
     # Load configs from file
     config = json.load(open(FLAGS.config))
+
+    # set_keras_backend('tensorflow', config['GPUs'])
+    # set_keras_backend('tensorflow')
+
 
     # Set name
     name = '{}_{}_'.format(config['INPUT_NAME'], config['TARGET_NAME'])
