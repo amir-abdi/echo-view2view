@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 from keras.utils import multi_gpu_model
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 from keras.optimizers import tf
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -31,17 +31,17 @@ flags.mark_flag_as_required('config')
 FLAGS = flags.FLAGS
 
 
-def set_keras_backend(backend, GPUs):
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = GPUs
-    print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
-    print('Setting backend to {}...'.format(backend))
-    if backend == 'tensorflow':
-        K.get_session().close()
-        cfg = K.tf.ConfigProto()
-        cfg.gpu_options.allow_growth = True
-        K.set_session(K.tf.Session(config=cfg))
-        K.clear_session()
+# def set_keras_backend(backend, GPUs):
+#
+#     os.environ["CUDA_VISIBLE_DEVICES"] = GPUs
+#     print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
+#     print('Setting backend to {}...'.format(backend))
+#     if backend == 'tensorflow':
+#         K.get_session().close()
+#         cfg = K.tf.ConfigProto()
+#         cfg.gpu_options.allow_growth = True
+#         K.set_session(K.tf.Session(config=cfg))
+#         K.clear_session()
 
 
 

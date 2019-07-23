@@ -5,12 +5,17 @@ import json
 
 from keras.utils import multi_gpu_model
 from keras.layers import Input
-from keras.models import Model
+from keras.models import Model, load_model
 from keras.optimizers import Adam
 from keras import backend as K
 from keras.optimizers import tf
+from keras.models import model_from_json
 
-from models import Discriminator, Generator
+
+
+
+
+from models import Discriminator, Generator, loss_dice_coefficient_error, Segmentation_model
 from utils import gen_fig
 
 RESULT_DIR = 'results'
@@ -59,9 +64,25 @@ class PatchGAN_Seg:
         self.discriminator = Discriminator(self.img_shape, self.df, num_layers_D).build()
         self.discriminator.compile(loss='mse', optimizer=self.optimizer_D, metrics=['accuracy'])
 
+
         # Build the generator
         print('Building generator')
         self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation, self.skipconnections_generator).build()
+
+        # Add Segmentation Model
+        print('Building Segmentation Model')
+        # Model reconstruction from JSON file
+
+        seg_model_name = 'results/Basic_4CH_ED_4CH_ED_gt_01/saved_models/segmentation_model'
+        with open(seg_model_name + '.json', 'r') as f:
+            self.seg_model = model_from_json(f.read())
+
+        # Load weights into the new model
+        self.seg_model.load_weights(seg_model_name + '_weights.hdf5')
+        # self.seg_model = load_model(seg_model_name)
+        self.seg_model.name = 'segmentation_model'
+
+
 
         # Input images and their conditioning images
         input_target = Input(shape=self.img_shape)
@@ -72,18 +93,21 @@ class PatchGAN_Seg:
         self.discriminator.trainable = False
         valid = self.discriminator([fake_img, input_input])
 
+        valid_seg = self.seg_model(fake_img)
+
         # with tf.device('/cpu:0'):
-        self.combined = Model(inputs=[input_target, input_input], outputs=[valid, fake_img])
+        self.combined = Model(inputs=[input_target, input_input], outputs=[valid, fake_img, valid_seg])
         num_gpu = len(K.tensorflow_backend._get_available_gpus())
         print('num gpu: ', num_gpu)
         if num_gpu > 1:
             self.combined = multi_gpu_model(self.combined, gpus=num_gpu)
 
 
-        self.combined.compile(loss=['mse', 'mae'],
+        self.combined.compile(loss=['mse', 'mae', loss_dice_coefficient_error],
                               optimizer=self.optimizer_G,
                               loss_weights=[config['LOSS_WEIGHT_DISC'],
-                                            config['LOSS_WEIGHT_GEN']])
+                                            config['LOSS_WEIGHT_GEN'],
+                                            config['LOSS_WEIGHT_SEG']])
 
         # Training
         self.batch_size = config['BATCH_SIZE']
@@ -113,7 +137,7 @@ class PatchGAN_Seg:
         print(valid.shape)
 
         while self.step < max_iter:
-            for targets, inputs in self.data_loader.get_random_batch(batch_size):
+            for targets, targets_gt, inputs in self.data_loader.get_random_batch(batch_size):
                 #  ---------- Train Discriminator -----------
                 fake_imgs = self.generator.predict(inputs)
                 d_loss_real = self.discriminator.train_on_batch([targets, inputs], valid)
@@ -123,7 +147,7 @@ class PatchGAN_Seg:
                 d_acc_fake = d_loss_fake[1] * 100
 
                 # ----------- Train Generator -----------
-                g_loss = self.combined.train_on_batch([targets, inputs], [valid, targets])
+                g_loss = self.combined.train_on_batch([targets, inputs], [valid, targets, targets_gt])
 
                 # Logging
                 if self.step % log_interval == 0:
@@ -151,8 +175,11 @@ class PatchGAN_Seg:
 
     def gen_valid_results(self, step_num, prefix=''):
         # os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR), exist_ok=True)
+        path = '%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR)
+        if not os.path.exists(path):
+            os.makedirs(path)
 
-        targets, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
+        targets, _, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
         fake_imgs = self.generator.predict(inputs)
         fig = gen_fig(inputs / self.input_trans,
                       fake_imgs / self.target_trans,
@@ -178,6 +205,8 @@ class PatchGAN_Seg:
         model_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, MODELS_DIR)
         print(model_dir)
         # os.makedirs(model_dir, exist_ok=True)
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir)
 
         def save(model, model_name):
             model_json_path = '%s/%s.json' % (model_dir, model_name)
@@ -198,6 +227,8 @@ class PatchGAN_Seg:
         image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
         print(image_dir)
         # os.makedirs(image_dir, exist_ok=True)
+        if not os.path.exists(image_dir):
+            os.makedirs(image_dir)
 
         for batch_i, (targets, inputs) in enumerate(self.data_loader.get_iterative_batch(3, stage='test')):
             fake_imgs = self.generator.predict(inputs)

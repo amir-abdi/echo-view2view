@@ -3,7 +3,7 @@ from absl import app
 from absl import flags
 from keras import backend as K
 import os
-from data_loader_camus_extended import DataLoaderCamus_extended
+from data_loader_camus_for_patch_gan_seg import DataLoaderCamus_extended
 from patch_gan_seg import PatchGAN_Seg
 
 import matplotlib.pyplot as plt
@@ -31,17 +31,17 @@ flags.mark_flag_as_required('config')
 FLAGS = flags.FLAGS
 
 
-def set_keras_backend(backend, GPUs):
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = GPUs
-    print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
-    print('Setting backend to {}...'.format(backend))
-    if backend == 'tensorflow':
-        K.get_session().close()
-        cfg = K.tf.ConfigProto()
-        cfg.gpu_options.allow_growth = True
-        K.set_session(K.tf.Session(config=cfg))
-        K.clear_session()
+# def set_keras_backend(backend, GPUs):
+#
+#     os.environ["CUDA_VISIBLE_DEVICES"] = GPUs
+#     print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
+#     print('Setting backend to {}...'.format(backend))
+#     if backend == 'tensorflow':
+#         K.get_session().close()
+#         cfg = K.tf.ConfigProto()
+#         cfg.gpu_options.allow_growth = True
+#         K.set_session(K.tf.Session(config=cfg))
+#         K.clear_session()
 
 
 

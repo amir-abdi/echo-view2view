@@ -13,7 +13,7 @@ plt.switch_backend('agg')
 from keras.utils import multi_gpu_model
 # import pdb
 # pdb.set_trace()
-os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 from keras.optimizers import tf
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
