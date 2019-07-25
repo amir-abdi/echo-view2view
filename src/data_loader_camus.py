@@ -6,10 +6,8 @@ from PIL import Image
 from prefetch_generator import background
 from keras.preprocessing.image import ImageDataGenerator
 
-
-
-
 NUM_PREFETCH = 10
+
 
 class DataLoaderCamus:
     def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio,
@@ -105,16 +103,16 @@ class DataLoaderCamus:
             target_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name))
             input_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
 
+            target_img = self.read_mhd(target_path, '_gt' in self.target_name)
+            target_img = self.datagen.apply_transform(target_img, transform)
+            target_imgs.append(target_img)
+
+            if not self.augment['AUG_SAME_FOR_BOTH']:
+                transform = self.datagen.get_random_transform(img_shape=self.img_res)
+
             input_img = self.read_mhd(input_path, '_gt' in self.input_name)
             input_img = self.datagen.apply_transform(input_img, transform)
             input_imgs.append(input_img)
-
-            target_img = self.read_mhd(target_path, '_gt' in self.target_name)
-            if self.augment['AUG_TARGET']:
-                if not self.augment['AUG_SAME_FOR_BOTH']:
-                    transform = self.datagen.get_random_transform(img_shape=self.img_res)
-                target_img = self.datagen.apply_transform(target_img, transform)
-            target_imgs.append(target_img)
 
         return np.array(target_imgs), np.array(input_imgs)
 

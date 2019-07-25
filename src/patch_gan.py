@@ -3,12 +3,10 @@ import numpy as np
 import os
 import json
 
-from keras.utils import multi_gpu_model
 from keras.layers import Input
 from keras.models import Model
 from keras.optimizers import Adam
 from keras import backend as K
-from keras.optimizers import tf
 
 from models import Discriminator, Generator
 from utils import gen_fig
@@ -47,7 +45,6 @@ class PatchGAN:
         # Number of filters in the first layer of G and D
         self.gf = config['FIRST_LAYERS_FILTERS']
         self.df = config['FIRST_LAYERS_FILTERS']
-        self.skipconnections_generator = config['SKIP_CONNECTIONS_GENERATOR']
         self.output_activation = config['GEN_OUTPUT_ACT']
         self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
         self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
@@ -61,7 +58,7 @@ class PatchGAN:
 
         # Build the generator
         print('Building generator')
-        self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation, self.skipconnections_generator).build()
+        self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation).build()
 
         # Input images and their conditioning images
         input_target = Input(shape=self.img_shape)
@@ -72,13 +69,7 @@ class PatchGAN:
         self.discriminator.trainable = False
         valid = self.discriminator([fake_img, input_input])
 
-        # with tf.device('/cpu:0'):
         self.combined = Model(inputs=[input_target, input_input], outputs=[valid, fake_img])
-        num_gpu = len(K.tensorflow_backend._get_available_gpus())
-        print('num gpu: ', num_gpu)
-        if num_gpu > 1:
-            self.combined = multi_gpu_model(self.combined, gpus=num_gpu)
-
 
         self.combined.compile(loss=['mse', 'mae'],
                               optimizer=self.optimizer_G,
@@ -150,11 +141,7 @@ class PatchGAN:
                 self.step += 1
 
     def gen_valid_results(self, step_num, prefix=''):
-        path = '%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR)
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        # os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR), exist_ok=True)
+        os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR), exist_ok=True)
 
         targets, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
         fake_imgs = self.generator.predict(inputs)
@@ -180,10 +167,7 @@ class PatchGAN:
 
     def save_model(self):
         model_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, MODELS_DIR)
-        print(model_dir)
-        if not os.path.exists(model_dir):
-            os.makedirs(model_dir)
-        # os.makedirs(model_dir, exist_ok=True)
+        os.makedirs(model_dir, exist_ok=True)
 
         def save(model, model_name):
             model_json_path = '%s/%s.json' % (model_dir, model_name)
@@ -202,10 +186,7 @@ class PatchGAN:
 
     def test(self):
         image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
-        print(image_dir)
-        if not os.path.exists(image_dir):
-            os.makedirs(image_dir)
-        # os.makedirs(image_dir, exist_ok=True)
+        os.makedirs(image_dir, exist_ok=True)
 
         for batch_i, (targets, inputs) in enumerate(self.data_loader.get_iterative_batch(3, stage='test')):
             fake_imgs = self.generator.predict(inputs)

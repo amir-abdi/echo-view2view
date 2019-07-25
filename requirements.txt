@@ -8,4 +8,3 @@ scipy
 wandb
 prefetch_generator
 absl-py
-os
