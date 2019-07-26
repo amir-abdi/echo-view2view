@@ -1,2 +1,0 @@
-- Sample json configs
-- The options are: "Segmentation", "PatchGAN", or "PatchGAN_Constrained"
