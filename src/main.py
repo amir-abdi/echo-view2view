@@ -13,12 +13,7 @@ plt.switch_backend('agg')
 from keras.utils import multi_gpu_model
 # import pdb
 # pdb.set_trace()
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
-from keras.optimizers import tf
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-sess = tf.Session(config=config)
-K.set_session(sess)
+
 
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
@@ -51,6 +46,13 @@ FLAGS = flags.FLAGS
 def main(argv):
     # Load configs from file
     config = json.load(open(FLAGS.config))
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = config["GPU"]
+    from keras.optimizers import tf
+    cf = tf.ConfigProto()
+    cf.gpu_options.allow_growth = True
+    sess = tf.Session(config=cf)
+    K.set_session(sess)
 
     # set_keras_backend('tensorflow', config['GPUs'])
     # set_keras_backend('tensorflow')

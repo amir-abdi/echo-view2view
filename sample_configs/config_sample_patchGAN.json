@@ -1,4 +1,5 @@
 {
+  "GPU": "1,2",
   "_comment": "Choose type from options: Segmentation/PatchGAN/PatchGAN_Constrained",
   "TYPE":"PatchGAN",
   "NAME":"PatchGAN_run0",
@@ -14,7 +15,7 @@
   "SAVE_MODEL_INTERVAL": 100,
   "IMAGE_RES": [256, 256],
   "CHANNELS": 1,
-  "FIRST_LAYERS_FILTERS": 64,
+  "FIRST_LAYERS_FILTERS": 32,
   "ADAM_B1": 0.5,
   "LOSS_WEIGHT_DISC": 1,
   "LOSS_WEIGHT_GEN": 100,
