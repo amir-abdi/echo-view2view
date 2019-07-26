@@ -57,7 +57,7 @@ def main(argv):
 
 
     # Set name
-    name = '{}_{}_'.format(config['INPUT_NAME'], config['TARGET_NAME'])
+    name = 'F{}_B{}_{}_{}_'.format(config['FIRST_LAYERS_FILTERS'],config['BATCH_SIZE'],config['INPUT_NAME'], config['TARGET_NAME'])
     for l in config['LABELS']:
         name += str(l)
     config['NAME'] += '_' + name

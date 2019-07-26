@@ -7,7 +7,6 @@ wandb
 *.jpg
 *.png
 *.npy
-*.json
 *.hdf5
 
 # model and trained directories

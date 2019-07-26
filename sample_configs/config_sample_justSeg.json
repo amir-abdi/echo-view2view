@@ -1,7 +1,7 @@
 {
   "_comment": "Choose type from options: Segmentation/PatchGAN/PatchGAN_Constrained",
   "TYPE":"Segmentation",
-  "NAME":"Segmentation_justSeg_run0",
+  "NAME":"JustSeg_run0",
   "LEARNING_RATE_G": 0.00013,
   "LEARNING_RATE_D": 0.00015,
   "LR_EXP_DECAY_FACTOR_G": 0.0,
@@ -23,7 +23,7 @@
   "GEN_OUTPUT_ACT": "sigmoid",
   "LABELS": [0, 1],
   "INPUT_NAME": "2CH_ED_gt",
-  "TARGET_NAME": "4CH_ED_gt",
+  "TARGET_NAME": "4CH_ED",
   "AUG_TARGET": false,
   "AUG_ROTATION_RANGE_DEGREES": 10,
   "AUG_WIDTH_SHIFT_RANGE_RATIO": 0.1,

@@ -44,7 +44,7 @@ class PatchGAN:
 
         if config['TYPE'] == 'Segmentation':
             self.gf = config['FIRST_LAYERS_FILTERS']
-            self.skipconnections_generator = True
+            self.skipconnections_generator = config['SKIP_CONNECTIONS_GENERATOR']
             self.output_activation = config['GEN_OUTPUT_ACT']
             self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
             self.optimizer_G = Adam(config['LEARNING_RATE_G'], config['ADAM_B1'])
