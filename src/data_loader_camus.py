@@ -72,11 +72,11 @@ class DataLoaderCamus:
 
         for i in range(num_batches):
             batch_paths = np.random.choice(paths, size=batch_size)
-            target_imgs, input_imgs = self._get_batch(batch_paths)
+            target_imgs, target_imgs_gt, input_imgs = self._get_batch(batch_paths, stage)
             target_imgs = target_imgs * self.target_rescale
             input_imgs = input_imgs * self.input_rescale
 
-            yield target_imgs, input_imgs
+            yield target_imgs, target_imgs_gt, input_imgs
 
     def get_iterative_batch(self, batch_size=1, stage='test'):
         paths = self._get_paths(stage)
@@ -87,20 +87,22 @@ class DataLoaderCamus:
         start_idx = 0
         for i in range(num_batches):
             batch_paths = paths[start_idx:start_idx + batch_size]
-            target_imgs, input_imgs= self._get_batch(batch_paths)
+            target_imgs, target_imgs_gt, input_imgs= self._get_batch(batch_paths, stage)
             target_imgs = target_imgs * self.target_rescale
             input_imgs = input_imgs * self.input_rescale
             start_idx += batch_size
 
-            yield target_imgs, input_imgs
+            yield target_imgs, target_imgs_gt, input_imgs
 
-    def _get_batch(self, paths_batch):
+    def _get_batch(self, paths_batch, stage):
         target_imgs = []
         input_imgs = []
+        target_imgs_gt = []
         for path in paths_batch:
             transform = self.datagen.get_random_transform(img_shape=self.img_res)
             head, patient_id = os.path.split(path)
             target_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name))
+            target_path_gt = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name + '_gt'))
             input_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
 
             target_img = self.read_mhd(target_path, '_gt' in self.target_name)
@@ -111,8 +113,21 @@ class DataLoaderCamus:
                 transform = self.datagen.get_random_transform(img_shape=self.img_res)
 
             input_img = self.read_mhd(input_path, '_gt' in self.input_name)
-            input_img = self.datagen.apply_transform(input_img, transform)
+            if stage == 'train':
+                input_img = self.datagen.apply_transform(input_img, transform)
             input_imgs.append(input_img)
 
-        return np.array(target_imgs), np.array(input_imgs)
+            target_img = self.read_mhd(target_path, '_gt' in self.target_name)
+            target_img_gt = self.read_mhd(target_path_gt, 1)
+
+            if self.augment['AUG_TARGET'] and stage == 'train':
+                if not self.augment['AUG_SAME_FOR_BOTH']:
+                    transform = self.datagen.get_random_transform(img_shape=self.img_res)
+                target_img = self.datagen.apply_transform(target_img, transform)
+                target_img_gt = self.datagen.apply_transform(target_img_gt, transform)
+            target_imgs.append(target_img)
+            target_imgs_gt.append(target_img_gt)
+
+
+        return np.array(target_imgs), np.array(target_imgs_gt), np.array(input_imgs)
 

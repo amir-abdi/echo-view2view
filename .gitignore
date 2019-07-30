@@ -2,12 +2,12 @@ core
 results
 datasets
 wandb
+results_upsample
 
 # Image and model files
 *.jpg
 *.png
 *.npy
-*.json
 *.hdf5
 
 # model and trained directories
@@ -119,3 +119,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+<<<<<<< HEAD
+=======
+
+/Data
+.requirements.txt.swp
+Run.txt
+/configs/config.json
+>>>>>>> mohammad_branch
