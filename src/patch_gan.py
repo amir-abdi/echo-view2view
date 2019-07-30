@@ -156,11 +156,9 @@ class PatchGAN:
         if self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
             valid = np.ones((batch_size,) + self.num_patches)
             fake = np.zeros((batch_size,) + self.num_patches)
-            print(valid.shape)
 
         while self.step < max_iter:
             for targets, targets_gt, inputs in self.data_loader.get_random_batch(batch_size):
-                #  ---------- Train Discriminator -----------
 
                 # ----------- Train Generator -----------
                 if self.config['TYPE'] == 'Segmentation':
@@ -172,6 +170,7 @@ class PatchGAN:
                         K.set_value(self.optimizer_G.lr, self.exp_decay(self.step, self.decay_factor_G, self.lr_G))
 
                 elif self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
+                    #  ---------- Train Discriminator -----------
                     fake_imgs = self.generator.predict(inputs)
                     d_loss_real = self.discriminator.train_on_batch([targets], valid)
                     d_loss_fake = self.discriminator.train_on_batch([fake_imgs], fake)

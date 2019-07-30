@@ -87,7 +87,7 @@ class DataLoaderCamus:
         start_idx = 0
         for i in range(num_batches):
             batch_paths = paths[start_idx:start_idx + batch_size]
-            target_imgs, target_imgs_gt, input_imgs= self._get_batch(batch_paths, stage)
+            target_imgs, target_imgs_gt, input_imgs = self._get_batch(batch_paths, stage)
             target_imgs = target_imgs * self.target_rescale
             input_imgs = input_imgs * self.input_rescale
             start_idx += batch_size
@@ -105,13 +105,6 @@ class DataLoaderCamus:
             target_path_gt = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name + '_gt'))
             input_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
 
-            target_img = self.read_mhd(target_path, '_gt' in self.target_name)
-            target_img = self.datagen.apply_transform(target_img, transform)
-            target_imgs.append(target_img)
-
-            if not self.augment['AUG_SAME_FOR_BOTH']:
-                transform = self.datagen.get_random_transform(img_shape=self.img_res)
-
             input_img = self.read_mhd(input_path, '_gt' in self.input_name)
             if stage == 'train':
                 input_img = self.datagen.apply_transform(input_img, transform)
@@ -128,6 +121,4 @@ class DataLoaderCamus:
             target_imgs.append(target_img)
             target_imgs_gt.append(target_img_gt)
 
-
         return np.array(target_imgs), np.array(target_imgs_gt), np.array(input_imgs)
-
