@@ -3,22 +3,25 @@ from keras.layers import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import Conv2DTranspose, Conv2D
 from keras.models import Model
+import keras.backend as K
 
 
 class Generator:
-    def __init__(self, img_shape, filters, channels, output_activation):
+    def __init__(self, img_shape, filters, channels, output_activation, skip_connections):
         self.img_shape = img_shape
         self.filters = filters
         self.channels = channels
         self.output_activation = output_activation
+        self.skip_connections = skip_connections
 
     def build(self):
         def conv2d(layer_input, filters, f_size=4, bn=True):
             d = Conv2D(filters, kernel_size=f_size,
                        strides=2, padding='same')(layer_input)
-            d = LeakyReLU(alpha=0.2)(d)
             if bn:
                 d = BatchNormalization(momentum=0.8)(d)
+            d = LeakyReLU(alpha=0.2)(d)
+
             return d
 
         def deconv2d(layer_input, skip_input, filters, f_size=4, dropout_rate=0):
@@ -26,10 +29,12 @@ class Generator:
                                 padding='same', activation='linear')(layer_input)
             u = Conv2D(filters, kernel_size=f_size, strides=1,
                        padding='same', activation='relu')(u)
+
+            u = BatchNormalization(momentum=0.8)(u)
             if dropout_rate:
                 u = Dropout(dropout_rate)(u)
-            u = BatchNormalization(momentum=0.8)(u)
-            u = Concatenate()([u, skip_input])
+            if self.skip_connections:
+                u = Concatenate()([u, skip_input])
             return u
 
         # Image input
@@ -76,16 +81,28 @@ class Discriminator:
                 d = BatchNormalization(momentum=0.8)(d)
             return d
 
-        input_targets = Input(shape=self.img_shape)
+        # input_targets = Input(shape=self.img_shape)
         input_inputs = Input(shape=self.img_shape)
-        combined_imgs = Concatenate(axis=-1)([input_targets, input_inputs])
+        # combined_imgs = Concatenate(axis=-1)([input_targets, input_inputs])
 
         # 4 d_layers with stride of 2 --> output is 1/16 in each dimension
-        d = d_layer(combined_imgs, self.filters, bn=False)
+        d = d_layer(input_inputs, self.filters, bn=False)
 
         for i in range(self.num_layers - 1):
             d = d_layer(d, self.filters * (2 ** (i + 1)))
 
         validity = Conv2D(1, kernel_size=4, strides=1, padding='same')(d)
 
-        return Model([input_targets, input_inputs], validity)
+        return Model(input_inputs, validity)
+
+
+def dice_coefficient(y_true, y_pred):
+    smoothing_factor = 1
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+    intersection = K.sum(y_true_f * y_pred_f)
+    return ((2.0 * intersection + smoothing_factor) / (K.sum(y_true_f) + K.sum(y_pred_f) + smoothing_factor))
+
+
+def loss_dice_coefficient_error(y_true, y_pred):
+    return -dice_coefficient(y_true, y_pred)

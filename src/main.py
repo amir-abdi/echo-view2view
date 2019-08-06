@@ -2,9 +2,13 @@ import json
 from absl import app
 from absl import flags
 from keras import backend as K
-
+import os
 from data_loader_camus import DataLoaderCamus
 from patch_gan import PatchGAN
+
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
@@ -15,10 +19,12 @@ flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
 flags.mark_flag_as_required('dataset_path')
 flags.mark_flag_as_required('config')
 
+
 FLAGS = flags.FLAGS
 
 
 def set_keras_backend(backend):
+
     print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
     print('Setting backend to {}...'.format(backend))
     if backend == 'tensorflow':
@@ -35,8 +41,15 @@ def main(argv):
     # Load configs from file
     config = json.load(open(FLAGS.config))
 
+    os.environ["CUDA_VISIBLE_DEVICES"] = config["GPU"]
+    from keras.optimizers import tf
+    cf = tf.ConfigProto()
+    cf.gpu_options.allow_growth = True
+    sess = tf.Session(config=cf)
+    K.set_session(sess)
+
     # Set name
-    name = '{}_{}_'.format(config['INPUT_NAME'], config['TARGET_NAME'])
+    name = 'F{}_B{}_{}_{}_'.format(config['FIRST_LAYERS_FILTERS'],config['BATCH_SIZE'],config['INPUT_NAME'], config['TARGET_NAME'])
     for l in config['LABELS']:
         name += str(l)
     config['NAME'] += '_' + name
