@@ -9,6 +9,9 @@ from patch_gan import PatchGAN
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
+from keras.utils import multi_gpu_model
+
+
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
