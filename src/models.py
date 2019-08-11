@@ -1,18 +1,20 @@
+# 1) Removed skip connections of the generator
+# 2) Added segmentation model
+
 from keras.layers import Input, Dropout, Concatenate
-from keras.layers import BatchNormalization
+from keras.layers import BatchNormalization, Activation, UpSampling2D, MaxPooling2D
 from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.convolutional import Conv2DTranspose, Conv2D
 from keras.models import Model
-import keras.backend as K
 
 
 class Generator:
-    def __init__(self, img_shape, filters, channels, output_activation, skip_connections):
+    def __init__(self, img_shape, filters, channels, output_activation, skipconnections_generator):
         self.img_shape = img_shape
         self.filters = filters
         self.channels = channels
         self.output_activation = output_activation
-        self.skip_connections = skip_connections
+        self.skipconnections_generator = skipconnections_generator
 
     def build(self):
         def conv2d(layer_input, filters, f_size=4, bn=True):
@@ -33,8 +35,10 @@ class Generator:
             u = BatchNormalization(momentum=0.8)(u)
             if dropout_rate:
                 u = Dropout(dropout_rate)(u)
-            if self.skip_connections:
+            if self.skipconnections_generator:
                 u = Concatenate()([u, skip_input])
+
+
             return u
 
         # Image input
@@ -76,9 +80,9 @@ class Discriminator:
     def build(self):
         def d_layer(layer_input, filters, f_size=4, bn=True):
             d = Conv2D(filters, kernel_size=f_size, strides=2, padding='same')(layer_input)
-            d = LeakyReLU(alpha=0.2)(d)
             if bn:
                 d = BatchNormalization(momentum=0.8)(d)
+            d = LeakyReLU(alpha=0.2)(d)
             return d
 
         # input_targets = Input(shape=self.img_shape)
@@ -96,6 +100,7 @@ class Discriminator:
         return Model(input_inputs, validity)
 
 
+import keras.backend as K
 def dice_coefficient(y_true, y_pred):
     smoothing_factor = 1
     y_true_f = K.flatten(y_true)

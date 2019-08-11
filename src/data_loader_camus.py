@@ -6,8 +6,10 @@ from PIL import Image
 from prefetch_generator import background
 from keras.preprocessing.image import ImageDataGenerator
 
-NUM_PREFETCH = 10
 
+
+
+NUM_PREFETCH = 10
 
 class DataLoaderCamus:
     def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio,
@@ -87,7 +89,7 @@ class DataLoaderCamus:
         start_idx = 0
         for i in range(num_batches):
             batch_paths = paths[start_idx:start_idx + batch_size]
-            target_imgs, target_imgs_gt, input_imgs = self._get_batch(batch_paths, stage)
+            target_imgs, target_imgs_gt, input_imgs= self._get_batch(batch_paths, stage)
             target_imgs = target_imgs * self.target_rescale
             input_imgs = input_imgs * self.input_rescale
             start_idx += batch_size
@@ -121,4 +123,6 @@ class DataLoaderCamus:
             target_imgs.append(target_img)
             target_imgs_gt.append(target_img_gt)
 
+
         return np.array(target_imgs), np.array(target_imgs_gt), np.array(input_imgs)
+

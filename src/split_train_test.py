@@ -44,4 +44,3 @@ if mode == 'load':
     for patient in test_patients:
         patient_ID = os.path.basename(patient)
         shutil.move(os.path.join(train_path,patient_ID), test_path)
-

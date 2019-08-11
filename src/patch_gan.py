@@ -3,11 +3,12 @@ import numpy as np
 import os
 import json
 
+from keras.utils import multi_gpu_model
 from keras.layers import Input
 from keras.models import Model, model_from_json
 from keras.optimizers import Adam
 from keras import backend as K
-from keras.utils import multi_gpu_model
+from keras.optimizers import tf
 
 from models import Discriminator, Generator, loss_dice_coefficient_error
 from utils import gen_fig
@@ -37,7 +38,6 @@ class PatchGAN:
         # scaling
         self.target_trans = config['TARGET_TRANS']
         self.input_trans = config['INPUT_TRANS']
-
         # Input images and their conditioning images
         # input_target = Input(shape=self.img_shape)
         input_layer = Input(shape=self.img_shape)
@@ -49,8 +49,7 @@ class PatchGAN:
             self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
             self.optimizer_G = Adam(config['LEARNING_RATE_G'], config['ADAM_B1'])
             print('Building segmentation model')
-            self.seg_model = Generator(self.img_shape, self.gf, self.channels, self.output_activation,
-                                       self.skipconnections_generator).build()
+            self.seg_model = Generator(self.img_shape, self.gf, self.channels, self.output_activation, self.skipconnections_generator).build()
             seg = self.seg_model(input_layer)
             self.combined = Model(inputs=[input_layer], outputs=[seg])
             num_gpu = len(K.tensorflow_backend._get_available_gpus())
@@ -62,9 +61,9 @@ class PatchGAN:
             #                       loss_weights=[config['LOSS_WEIGHT_DISC'],
             #                                     config['LOSS_WEIGHT_GEN']])
             self.combined.compile(loss=loss_dice_coefficient_error,
-                                  optimizer=self.optimizer_G)
+                                   optimizer=self.optimizer_G)
 
-        if config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
+        if config['TYPE'] in ['PatchGAN','PatchGAN_Constrained']:
             # Calculate output shape of D (PatchGAN)
             patch_size = config['PATCH_SIZE']
             patch_per_dim = int(self.img_rows / patch_size)
@@ -90,6 +89,7 @@ class PatchGAN:
             print('Building generator')
             self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation,
                                        self.skipconnections_generator).build()
+
 
             # Turn of discriminator training for the combined model (i.e. generator)
             fake_img = self.generator(input_layer)
@@ -156,9 +156,12 @@ class PatchGAN:
         if self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
             valid = np.ones((batch_size,) + self.num_patches)
             fake = np.zeros((batch_size,) + self.num_patches)
+            print(valid.shape)
 
         while self.step < max_iter:
             for targets, targets_gt, inputs in self.data_loader.get_random_batch(batch_size):
+                #  ---------- Train Discriminator -----------
+
 
                 # ----------- Train Generator -----------
                 if self.config['TYPE'] == 'Segmentation':
@@ -169,8 +172,7 @@ class PatchGAN:
                               % (self.step, max_iter, g_loss, elapsed_time))
                         K.set_value(self.optimizer_G.lr, self.exp_decay(self.step, self.decay_factor_G, self.lr_G))
 
-                elif self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
-                    #  ---------- Train Discriminator -----------
+                elif self.config['TYPE'] in ['PatchGAN','PatchGAN_Constrained']:
                     fake_imgs = self.generator.predict(inputs)
                     d_loss_real = self.discriminator.train_on_batch([targets], valid)
                     d_loss_fake = self.discriminator.train_on_batch([fake_imgs], fake)
@@ -192,6 +194,7 @@ class PatchGAN:
                         K.set_value(self.optimizer_G.lr, self.exp_decay(self.step, self.decay_factor_G, self.lr_G))
                         K.set_value(self.optimizer_D.lr, self.exp_decay(self.step, self.decay_factor_D, self.lr_D))
 
+
                         if self.use_wandb:
                             import wandb
                             wandb.log({'d_loss': d_loss, 'd_acc_real': d_acc_real, 'd_acc_fake': d_acc_fake,
@@ -206,10 +209,15 @@ class PatchGAN:
                 if self.step % save_model_interval == 0:
                     self.save_model()
 
+
                 self.step += 1
 
     def gen_valid_results(self, step_num, prefix=''):
-        os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR), exist_ok=True)
+        path = '%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR)
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        # os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR), exist_ok=True)
 
         targets, targets_gt, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
         if self.config['TYPE'] == 'Segmentation':
@@ -218,7 +226,7 @@ class PatchGAN:
                           seg_pred / self.target_trans,
                           targets_gt / self.target_trans)
 
-        if self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
+        if self.config['TYPE'] in ['PatchGAN','PatchGAN_Constrained']:
             fake_imgs = self.generator.predict(inputs)
             fig = gen_fig(inputs / self.input_trans,
                           fake_imgs / self.target_trans,
@@ -243,7 +251,10 @@ class PatchGAN:
 
     def save_model(self):
         model_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, MODELS_DIR)
-        os.makedirs(model_dir, exist_ok=True)
+        print(model_dir)
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir)
+        # os.makedirs(model_dir, exist_ok=True)
 
         def save(model, model_name):
             model_json_path = '%s/%s.json' % (model_dir, model_name)
@@ -265,7 +276,10 @@ class PatchGAN:
 
     def test(self):
         image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
-        os.makedirs(image_dir, exist_ok=True)
+        print(image_dir)
+        if not os.path.exists(image_dir):
+            os.makedirs(image_dir)
+        # os.makedirs(image_dir, exist_ok=True)
 
         for batch_i, (targets, inputs) in enumerate(self.data_loader.get_iterative_batch(3, stage='test')):
             fake_imgs = self.generator.predict(inputs)
