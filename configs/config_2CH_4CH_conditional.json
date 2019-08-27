@@ -2,7 +2,7 @@
   "GPU": "0",
   "_comment": "Choose type from options: Segmentation/PatchGAN/PatchGAN_Constrained",
   "TYPE":"PatchGAN",
-  "NAME":"PatchGAN_paper",
+  "NAME":"PatchGAN_Conditional",
   "LEARNING_RATE_G": 0.00013,
   "LEARNING_RATE_D": 0.00015,
   "LR_EXP_DECAY_FACTOR_G": 0.0,
@@ -32,5 +32,5 @@
   "AUG_SHEAR_RANGE_ANGLE": 0,
   "AUG_ZOOM_RANGE_RATIO": 0.1,
   "SKIP_CONNECTIONS_GENERATOR": false,
-  "CONDITIONAL_DISCRIMINATOR": false
+  "CONDITIONAL_DISCRIMINATOR": true
 }

@@ -2,12 +2,11 @@ import numpy as np
 import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 plt.switch_backend('agg')
 
+
 def gen_fig(inputs, generated, targets):
-
-
-
     r, c = 3, 3
     titles = ['Condition', 'Generated', 'Original']
     all_imgs = np.concatenate([inputs, generated, targets])

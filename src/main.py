@@ -6,14 +6,12 @@ import os
 from data_loader_camus import DataLoaderCamus
 from patch_gan import PatchGAN
 import matplotlib
-# matplotlib.use('Agg')
+
+matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
+
 plt.switch_backend('agg')
-from keras.utils import multi_gpu_model
-
-
-
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
@@ -24,22 +22,7 @@ flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
 flags.mark_flag_as_required('dataset_path')
 flags.mark_flag_as_required('config')
 
-
 FLAGS = flags.FLAGS
-
-
-# def set_keras_backend(backend):
-#
-#     print('Available GPUS:', K.tensorflow_backend._get_available_gpus())
-#     print('Setting backend to {}...'.format(backend))
-#     if backend == 'tensorflow':
-#         K.get_session().close()
-#         cfg = K.tf.ConfigProto()
-#         cfg.gpu_options.allow_growth = True
-#         K.set_session(K.tf.Session(config=cfg))
-#         K.clear_session()
-
-
 
 
 def main(argv):
@@ -53,12 +36,9 @@ def main(argv):
     sess = tf.Session(config=cf)
     K.set_session(sess)
 
-    # set_keras_backend('tensorflow', config['GPUs'])
-    # set_keras_backend('tensorflow')
-
-
     # Set name
-    name = 'F{}_B{}_{}_{}_'.format(config['FIRST_LAYERS_FILTERS'],config['BATCH_SIZE'],config['INPUT_NAME'], config['TARGET_NAME'])
+    name = 'F{}_B{}_{}_{}_'.format(config['FIRST_LAYERS_FILTERS'], config['BATCH_SIZE'],
+                                   config['INPUT_NAME'], config['TARGET_NAME'])
     for l in config['LABELS']:
         name += str(l)
     config['NAME'] += '_' + name
@@ -84,7 +64,7 @@ def main(argv):
     if FLAGS.use_wandb:
         import wandb
         resume_wandb = True if FLAGS.wandb_resume_id is not None else False
-        wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoGen')
+        wandb.init(config=config, resume=resume_wandb, id=FLAGS.wandb_resume_id, project='EchoView2View')
 
     # Initialize GAN
     model = PatchGAN(data_loader, config, FLAGS.use_wandb)

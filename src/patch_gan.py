@@ -38,9 +38,11 @@ class PatchGAN:
         # scaling
         self.target_trans = config['TARGET_TRANS']
         self.input_trans = config['INPUT_TRANS']
+
         # Input images and their conditioning images
-        # input_target = Input(shape=self.img_shape)
-        input_layer = Input(shape=self.img_shape)
+        self.conditional_d = config.get('CONDITIONAL_DISCRIMINATOR', False)
+        input_target = Input(shape=self.img_shape)
+        input_input = Input(shape=self.img_shape)
 
         if config['TYPE'] == 'Segmentation':
             self.gf = config['FIRST_LAYERS_FILTERS']
@@ -49,9 +51,10 @@ class PatchGAN:
             self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
             self.optimizer_G = Adam(config['LEARNING_RATE_G'], config['ADAM_B1'])
             print('Building segmentation model')
-            self.seg_model = Generator(self.img_shape, self.gf, self.channels, self.output_activation, self.skipconnections_generator).build()
-            seg = self.seg_model(input_layer)
-            self.combined = Model(inputs=[input_layer], outputs=[seg])
+            self.seg_model = Generator(self.img_shape, self.gf, self.channels, self.output_activation,
+                                       self.skipconnections_generator).build()
+            seg = self.seg_model(input_input)
+            self.combined = Model(inputs=[input_input], outputs=[seg])
             num_gpu = len(K.tensorflow_backend._get_available_gpus())
             if num_gpu > 1:
                 self.combined = multi_gpu_model(self.combined, gpus=num_gpu)
@@ -61,9 +64,9 @@ class PatchGAN:
             #                       loss_weights=[config['LOSS_WEIGHT_DISC'],
             #                                     config['LOSS_WEIGHT_GEN']])
             self.combined.compile(loss=loss_dice_coefficient_error,
-                                   optimizer=self.optimizer_G)
+                                  optimizer=self.optimizer_G)
 
-        if config['TYPE'] in ['PatchGAN','PatchGAN_Constrained']:
+        if config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
             # Calculate output shape of D (PatchGAN)
             patch_size = config['PATCH_SIZE']
             patch_per_dim = int(self.img_rows / patch_size)
@@ -82,7 +85,8 @@ class PatchGAN:
 
             # Build and compile the discriminator
             print('Building discriminator')
-            self.discriminator = Discriminator(self.img_shape, self.df, num_layers_D).build()
+            self.discriminator = Discriminator(self.img_shape, self.df, num_layers_D,
+                                               conditional=self.conditional_d).build()
             self.discriminator.compile(loss='mse', optimizer=self.optimizer_D, metrics=['accuracy'])
 
             # Build the generator
@@ -90,15 +94,19 @@ class PatchGAN:
             self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation,
                                        self.skipconnections_generator).build()
 
-
             # Turn of discriminator training for the combined model (i.e. generator)
-            fake_img = self.generator(input_layer)
+            fake_img = self.generator(input_input)
             self.discriminator.trainable = False
-            valid = self.discriminator(fake_img)
+            if self.conditional_d:
+                valid = self.discriminator([fake_img, input_target])
+            else:
+                valid = self.discriminator(fake_img)
 
             if config['TYPE'] == 'PatchGAN':
-                # with tf.device('/cpu:0'):
-                self.combined = Model(inputs=[input_layer], outputs=[valid, fake_img])
+                if self.conditional_d:
+                    self.combined = Model(inputs=[input_target, input_input], outputs=[valid, fake_img])
+                else:
+                    self.combined = Model(inputs=[input_input], outputs=[valid, fake_img])
                 num_gpu = len(K.tensorflow_backend._get_available_gpus())
                 print('num gpu: ', num_gpu)
                 if num_gpu > 1:
@@ -118,7 +126,7 @@ class PatchGAN:
                 valid_seg = self.seg_model(fake_img)
 
                 # with tf.device('/cpu:0'):
-                self.combined = Model(inputs=[input_layer], outputs=[valid, fake_img, valid_seg])
+                self.combined = Model(inputs=[input_input], outputs=[valid, fake_img, valid_seg])
                 num_gpu = len(K.tensorflow_backend._get_available_gpus())
                 print('num gpu: ', num_gpu)
                 if num_gpu > 1:
@@ -153,17 +161,15 @@ class PatchGAN:
         save_model_interval = self.save_model_interval
 
         # Adversarial loss ground truths
-        if self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
+        if 'GAN' in self.config['TYPE']:
             valid = np.ones((batch_size,) + self.num_patches)
             fake = np.zeros((batch_size,) + self.num_patches)
-            print(valid.shape)
+            print('PatchGAN valid shape:', valid.shape)
 
         while self.step < max_iter:
             for targets, targets_gt, inputs in self.data_loader.get_random_batch(batch_size):
-                #  ---------- Train Discriminator -----------
 
-
-                # ----------- Train Generator -----------
+                # ----------- Train Segmentation Model -----------
                 if self.config['TYPE'] == 'Segmentation':
                     g_loss = self.combined.train_on_batch([inputs], [targets_gt])
                     if self.step % log_interval == 0:
@@ -172,20 +178,34 @@ class PatchGAN:
                               % (self.step, max_iter, g_loss, elapsed_time))
                         K.set_value(self.optimizer_G.lr, self.exp_decay(self.step, self.decay_factor_G, self.lr_G))
 
-                elif self.config['TYPE'] in ['PatchGAN','PatchGAN_Constrained']:
+                #  ---------- Train Discriminator -----------
+                elif self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
                     fake_imgs = self.generator.predict(inputs)
-                    d_loss_real = self.discriminator.train_on_batch([targets], valid)
-                    d_loss_fake = self.discriminator.train_on_batch([fake_imgs], fake)
+
+                    if self.conditional_d:
+                        d_loss_real = self.discriminator.train_on_batch([targets, targets_gt], valid)
+                        d_loss_fake = self.discriminator.train_on_batch([fake_imgs, targets_gt], fake)
+                    else:
+                        d_loss_real = self.discriminator.train_on_batch([targets], valid)
+                        d_loss_fake = self.discriminator.train_on_batch([fake_imgs], fake)
                     d_loss = 0.5 * np.add(d_loss_real[0], d_loss_fake[0])
                     d_acc_real = d_loss_real[1] * 100
                     d_acc_fake = d_loss_fake[1] * 100
+
+                    if self.conditional_d:
+                        combined_inputs = [targets_gt, inputs]
+                    else:
+                        combined_inputs = [inputs]
+
                     if self.config['TYPE'] == 'PatchGAN':
-                        g_loss = self.combined.train_on_batch([inputs], [valid, targets])
+                        combined_targets = [valid, targets]
+                    else:
+                        combined_targets = [valid, targets, targets_gt]
 
-                    elif self.config['TYPE'] == 'PatchGAN_Constrained':
-                        g_loss = self.combined.train_on_batch([inputs], [valid, targets, targets_gt])
+                    #  ---------- Train Generator -----------
+                    g_loss = self.combined.train_on_batch(combined_inputs, combined_targets)
 
-                        # Logging
+                    # Logging
                     if self.step % log_interval == 0:
                         elapsed_time = datetime.datetime.now() - start_time
                         print('[iter %d/%d] [D loss: %f, acc: r:%3d%% f:%3d%%] [G loss: %f] time: %s'
@@ -193,7 +213,6 @@ class PatchGAN:
 
                         K.set_value(self.optimizer_G.lr, self.exp_decay(self.step, self.decay_factor_G, self.lr_G))
                         K.set_value(self.optimizer_D.lr, self.exp_decay(self.step, self.decay_factor_D, self.lr_D))
-
 
                         if self.use_wandb:
                             import wandb
@@ -209,15 +228,12 @@ class PatchGAN:
                 if self.step % save_model_interval == 0:
                     self.save_model()
 
-
                 self.step += 1
 
     def gen_valid_results(self, step_num, prefix=''):
         path = '%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR)
         if not os.path.exists(path):
             os.makedirs(path)
-
-        # os.makedirs('%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR), exist_ok=True)
 
         targets, targets_gt, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
         if self.config['TYPE'] == 'Segmentation':
@@ -226,7 +242,7 @@ class PatchGAN:
                           seg_pred / self.target_trans,
                           targets_gt / self.target_trans)
 
-        if self.config['TYPE'] in ['PatchGAN','PatchGAN_Constrained']:
+        if self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
             fake_imgs = self.generator.predict(inputs)
             fig = gen_fig(inputs / self.input_trans,
                           fake_imgs / self.target_trans,
@@ -254,6 +270,7 @@ class PatchGAN:
         print(model_dir)
         if not os.path.exists(model_dir):
             os.makedirs(model_dir)
+
         # os.makedirs(model_dir, exist_ok=True)
 
         def save(model, model_name):
