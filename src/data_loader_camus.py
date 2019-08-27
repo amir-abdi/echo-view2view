@@ -5,9 +5,10 @@ import skimage.io as io
 from PIL import Image
 from prefetch_generator import background
 from keras.preprocessing.image import ImageDataGenerator
-
+import random
 NUM_PREFETCH = 10
 
+random_seed = 7
 
 class DataLoaderCamus:
     def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio,
@@ -21,6 +22,7 @@ class DataLoaderCamus:
         self.augment = augment
 
         patients = sorted(glob(os.path.join(self.dataset_path, 'training', '*')))
+        random.Random(random_seed).shuffle(patients)
         num = len(patients)
         num_train = int(num * (1 - train_ratio))
         self.train_patients = patients[:num_train]
