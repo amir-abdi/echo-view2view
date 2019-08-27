@@ -321,26 +321,34 @@ class PatchGAN:
     def get_LV_lenght(self, mask):
         from scipy.ndimage import rotate
         mask = mask.astype('uint8')
-        deg = self.rotate_degree(mask)
-        mask = rotate(mask, deg)
+        # deg = self.rotate_degree(mask)
+        # mask = rotate(mask, deg)
         horizontal_sum = np.sum(mask > 0, axis=1)
-        L_lenght = np.max(np.where(horizontal_sum > 0)) - np.min(np.where(horizontal_sum > 0))
-        return mask, deg, L_lenght
+        # L_lenght = np.max(np.where(horizontal_sum > 0)) - np.min(np.where(horizontal_sum > 0))
+        L_lenght = np.sum(horizontal_sum)
+        return mask, 0, L_lenght
 
-    def match_apical(self, input, target_real,
-                     target_fake):  # match ap2 and ap4 based on LV length and calculate the difference in area
+    def match_apical(self, gt_mask, target_real, target_fake):
+        """
+        match ap2 and ap4 based on LV length and calculate the difference in area
+        """
         import cv2
         from scipy.ndimage import rotate
-        _, _, L_i = self.get_LV_lenght(input)
+        _, _, L_gt = self.get_LV_lenght(gt_mask)
         target_real, deg_tr, L_tr = self.get_LV_lenght(target_real)
         target_fake, deg_tf, L_tf = self.get_LV_lenght(target_fake)
-        ratio_tr = L_i / L_tr
-        ratio_tf = L_i / L_tf
+
+        print('L_tr', L_tr)
+        print('L_tf', L_tf)
+        print('L_gt', L_gt)
+
+        ratio_tr = L_gt / L_tr
+        ratio_tf = L_gt / L_tf
         target_real = cv2.resize(target_real, (0, 0), fx=ratio_tr, fy=ratio_tr)
         target_fake = cv2.resize(target_fake, (0, 0), fx=ratio_tf, fy=ratio_tf)
 
-        target_real = rotate(target_real, -deg_tr)
-        target_fake = rotate(target_fake, -deg_tf)
+        # target_real = rotate(target_real, -deg_tr)
+        # target_fake = rotate(target_fake, -deg_tf)
 
         return target_real, target_fake
 
@@ -367,7 +375,7 @@ class PatchGAN:
 
         cnt = 1
         for batch_i, (targets, targets_seg_gt, inputs, inputs_seg_gt) in enumerate(
-                self.data_loader.get_iterative_batch(2, stage='test')):
+                self.data_loader.get_iterative_batch(1, stage='valid')):
             # generate fake target image
             fake_imgs = self.generator.predict(inputs)
 
@@ -388,7 +396,8 @@ class PatchGAN:
                     continue
                 fake_segs[i, :, :, 0] = mask_fake
                 target_segs[i, :, :, 0] = mask_target
-                mask_real, mask_fake = self.match_apical(inputs_seg_gt[i, :, :, 0], target_segs[i, :, :, 0],
+                mask_real, mask_fake = self.match_apical(targets_seg_gt[i, :, :, 0],
+                                                         target_segs[i, :, :, 0],
                                                          fake_segs[i, :, :, 0])
                 sheet1.write(cnt, 0, cnt)
                 sheet1.write(cnt, 1, np.sum(mask_real).astype('float64'))
@@ -402,8 +411,8 @@ class PatchGAN:
             fig = gen_fig_seg(inputs / self.input_trans,
                               fake_imgs / self.target_trans,
                               targets / self.target_trans,
-                              fake_segs / self.target_trans,
-                              target_segs / self.target_trans)
+                              fake_segs,
+                              target_segs)
 
             fig.savefig('%s/%d.png' % (image_dir, batch_i))
 
