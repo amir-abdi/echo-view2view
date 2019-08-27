@@ -23,12 +23,12 @@ def gen_fig(inputs, generated, targets):
     return fig
 
 
-def gen_fig_seg(inputs, generated, targets, fake_segs, targets_seg):
+def gen_fig_seg(inputs, generated, targets, fake_segs, targets_seg, target_seg_gt):
     r, c = 3, 4
     titles_even = ['Condition', 'Generated', 'Original']
-    titles_odd = ['Original', 'Generated_Seg', 'Original_Seg']
+    titles_odd = ['GT_Seg', 'Generated_Seg', 'Original_Seg']
     all_imgs_even = np.concatenate([inputs, generated, targets])
-    all_imgs_odd = np.concatenate(([targets, fake_segs, targets_seg]))
+    all_imgs_odd = np.concatenate(([target_seg_gt, fake_segs, targets_seg]))
 
     fig, axs = plt.subplots(r, c)
     cnt = 0
