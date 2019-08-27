@@ -295,7 +295,8 @@ class PatchGAN:
     def rotate_degree(mask):
         from scipy import ndimage
         import math
-        [COG_x, COG_y] = ndimage.measurements.center_of_mass(mask)  # returns tuple: x,y => first vertical second horizontal
+        [COG_x, COG_y] = ndimage.measurements.center_of_mass(
+            mask)  # returns tuple: x,y => first vertical second horizontal
         horizontal_sum = np.sum(mask > 0, axis=1)
         top_x = np.min(np.where(horizontal_sum > 0))
         top_y = np.median(np.where(mask[top_x, :] != 0))
@@ -348,11 +349,11 @@ class PatchGAN:
         wb = Workbook()
         sheet1 = wb.add_sheet('Area')
         # seg_model = load_model(seg_load_addr + '/AP{}_Seg.h5'.format(self.config['TARGET_NAME'][0]))
-        json_file = open(os.path.join(seg_load_addr,'segmentation_model.json'), 'r')
+        json_file = open(os.path.join(seg_load_addr, 'segmentation_model.json'), 'r')
         loaded_model_json = json_file.read()
         json_file.close()
         seg_model = model_from_json(loaded_model_json)
-        seg_model.load_weights(os.path.join(seg_load_addr,'segmentation_model_weights.hdf5'))
+        seg_model.load_weights(os.path.join(seg_load_addr, 'segmentation_model_weights.hdf5'))
 
         image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
         print(image_dir)
@@ -367,9 +368,13 @@ class PatchGAN:
         cnt = 1
         for batch_i, (targets, targets_seg_gt, inputs, inputs_seg_gt) in enumerate(
                 self.data_loader.get_iterative_batch(2, stage='test')):
+            # generate fake target image
             fake_imgs = self.generator.predict(inputs)
+
+            # estimate the segmentation mask for real (target) and fake
             fake_segs = seg_model.predict(fake_imgs)
             target_segs = seg_model.predict(targets)
+
             for i in range(0, fake_segs.shape[0]):
                 mask_fake = self.fill_and_get_LCC(fake_segs[i, :, :, 0])
                 mask_target = self.fill_and_get_LCC(target_segs[i, :, :, 0])
@@ -388,6 +393,8 @@ class PatchGAN:
                 sheet1.write(cnt, 0, cnt)
                 sheet1.write(cnt, 1, np.sum(mask_real).astype('float64'))
                 sheet1.write(cnt, 2, np.sum(mask_fake).astype('float64'))
+                sheet1.write(cnt, 3, np.sum(targets_seg_gt).astype('float64'))
+
                 # sheet1.write(cnt, 3, abs(np.sum(mask_real) - np.sum(mask_fake)).astype('float64'))
                 cnt = cnt + 1
                 print('test#: %d' % cnt)
@@ -399,6 +406,5 @@ class PatchGAN:
                               target_segs / self.target_trans)
 
             fig.savefig('%s/%d.png' % (image_dir, batch_i))
-
 
         wb.save('%s/Areas.xls' % (image_dir))

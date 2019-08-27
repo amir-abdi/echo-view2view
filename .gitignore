@@ -3,6 +3,7 @@ results
 datasets
 wandb
 results_upsample
+segmentation_models
 
 # Image and model files
 *.jpg

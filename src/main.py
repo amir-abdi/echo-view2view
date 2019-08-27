@@ -9,10 +9,6 @@ import matplotlib
 
 matplotlib.use('Agg')
 
-import matplotlib.pyplot as plt
-
-# plt.switch_backend('agg')
-
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_string('gpu', '0', 'Comma separated list of GPU cores to use for training.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
