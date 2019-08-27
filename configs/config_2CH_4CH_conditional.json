@@ -1,5 +1,4 @@
 {
-  "GPU": "0",
   "_comment": "Choose type from options: Segmentation/PatchGAN/PatchGAN_Constrained",
   "TYPE":"PatchGAN",
   "NAME":"PatchGAN_Conditional",

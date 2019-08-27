@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
+flags.DEFINE_string('gpu', '0', 'Comma separated list of GPU cores to use for training.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
 flags.DEFINE_string('config', None, 'Config file for training hyper-parameters.')
 flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
@@ -29,7 +30,7 @@ def main(argv):
     # Load configs from file
     config = json.load(open(FLAGS.config))
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = config["GPU"]
+    os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
     from keras.optimizers import tf
     cf = tf.ConfigProto()
     cf.gpu_options.allow_growth = True
