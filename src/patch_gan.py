@@ -322,7 +322,7 @@ class PatchGAN:
         from scipy.ndimage import rotate
         mask = mask.astype('uint8')
         deg = 0
-        if self.config['ROTATATION_FOR_APICAL_MATCH'] == True:
+        if self.config['ROTATION_FOR_APICAL_MATCH'] == True:
             deg = self.rotate_degree(mask)
             mask = rotate(mask, deg)
         horizontal_sum = np.sum(mask > 0, axis=1)
