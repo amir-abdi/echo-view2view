@@ -11,7 +11,7 @@ from keras import backend as K
 from keras.optimizers import tf
 
 from models import Discriminator, Generator, loss_dice_coefficient_error
-from utils import gen_fig
+from utils import gen_fig, gen_fig_seg
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
@@ -291,16 +291,114 @@ class PatchGAN:
             save(self.discriminator, 'discriminator')
         print('Model saved in {}'.format(model_dir))
 
-    def test(self):
+    @staticmethod
+    def rotate_degree(mask):
+        from scipy import ndimage
+        import math
+        [COG_x, COG_y] = ndimage.measurements.center_of_mass(mask)  # returns tuple: x,y => first vertical second horizontal
+        horizontal_sum = np.sum(mask > 0, axis=1)
+        top_x = np.min(np.where(horizontal_sum > 0))
+        top_y = np.median(np.where(mask[top_x, :] != 0))
+
+        degree = np.arctan((COG_y - top_y) / (COG_x - top_x))
+        return -math.degrees(degree)
+
+    @staticmethod
+    def fill_and_get_LCC(seg):  # binary fill and get largest connected component
+        from scipy.ndimage.morphology import binary_fill_holes
+        from skimage.measure import label
+        seg[seg >= 0.5] = 1
+        seg[seg < 0.5] = 0
+        seg = binary_fill_holes(seg)
+        seg = np.uint8(seg)
+        if np.sum(seg) > 0:
+            labels = label(seg)
+            largestCC = labels == np.argmax(np.bincount(labels.flat, weights=seg.flat))
+            return largestCC
+        return -1
+
+    def get_LV_lenght(self, mask):
+        from scipy.ndimage import rotate
+        mask = mask.astype('uint8')
+        deg = self.rotate_degree(mask)
+        mask = rotate(mask, deg)
+        horizontal_sum = np.sum(mask > 0, axis=1)
+        L_lenght = np.max(np.where(horizontal_sum > 0)) - np.min(np.where(horizontal_sum > 0))
+        return mask, deg, L_lenght
+
+    def match_apical(self, input, target_real,
+                     target_fake):  # match ap2 and ap4 based on LV length and calculate the difference in area
+        import cv2
+        from scipy.ndimage import rotate
+        _, _, L_i = self.get_LV_lenght(input)
+        target_real, deg_tr, L_tr = self.get_LV_lenght(target_real)
+        target_fake, deg_tf, L_tf = self.get_LV_lenght(target_fake)
+        ratio_tr = L_i / L_tr
+        ratio_tf = L_i / L_tf
+        target_real = cv2.resize(target_real, (0, 0), fx=ratio_tr, fy=ratio_tr)
+        target_fake = cv2.resize(target_fake, (0, 0), fx=ratio_tf, fy=ratio_tf)
+
+        target_real = rotate(target_real, -deg_tr)
+        target_fake = rotate(target_fake, -deg_tf)
+
+        return target_real, target_fake
+
+    def test(self, seg_load_addr):
+        from xlwt import Workbook
+        wb = Workbook()
+        sheet1 = wb.add_sheet('Area')
+        # seg_model = load_model(seg_load_addr + '/AP{}_Seg.h5'.format(self.config['TARGET_NAME'][0]))
+        json_file = open(os.path.join(seg_load_addr,'segmentation_model.json'), 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        seg_model = model_from_json(loaded_model_json)
+        seg_model.load_weights(os.path.join(seg_load_addr,'segmentation_model_weights.hdf5'))
+
         image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
         print(image_dir)
         if not os.path.exists(image_dir):
             os.makedirs(image_dir)
         # os.makedirs(image_dir, exist_ok=True)
+        sheet1.write(0, 0, 'counter')
+        sheet1.write(0, 1, 'real_area')
+        sheet1.write(0, 2, 'fake_area')
+        # sheet1.write(0, 3, 'difference')
 
-        for batch_i, (targets, inputs) in enumerate(self.data_loader.get_iterative_batch(3, stage='test')):
+        cnt = 1
+        for batch_i, (targets, targets_seg_gt, inputs, inputs_seg_gt) in enumerate(
+                self.data_loader.get_iterative_batch(2, stage='test')):
             fake_imgs = self.generator.predict(inputs)
-            fig = gen_fig(inputs / self.input_trans,
-                          fake_imgs / self.target_trans,
-                          targets / self.target_trans)
+            fake_segs = seg_model.predict(fake_imgs)
+            target_segs = seg_model.predict(targets)
+            for i in range(0, fake_segs.shape[0]):
+                mask_fake = self.fill_and_get_LCC(fake_segs[i, :, :, 0])
+                mask_target = self.fill_and_get_LCC(target_segs[i, :, :, 0])
+                if len(mask_fake) == 1 or len(mask_target) == 1:
+                    print('segmentation model error')
+                    sheet1.write(cnt, 0, cnt)
+                    sheet1.write(cnt, 1, '-')
+                    sheet1.write(cnt, 2, '-')
+                    sheet1.write(cnt, 3, '-')
+                    cnt = cnt + 1
+                    continue
+                fake_segs[i, :, :, 0] = mask_fake
+                target_segs[i, :, :, 0] = mask_target
+                mask_real, mask_fake = self.match_apical(inputs_seg_gt[i, :, :, 0], target_segs[i, :, :, 0],
+                                                         fake_segs[i, :, :, 0])
+                sheet1.write(cnt, 0, cnt)
+                sheet1.write(cnt, 1, np.sum(mask_real).astype('float64'))
+                sheet1.write(cnt, 2, np.sum(mask_fake).astype('float64'))
+                # sheet1.write(cnt, 3, abs(np.sum(mask_real) - np.sum(mask_fake)).astype('float64'))
+                cnt = cnt + 1
+                print('test#: %d' % cnt)
+
+            fig = gen_fig_seg(inputs / self.input_trans,
+                              fake_imgs / self.target_trans,
+                              targets / self.target_trans,
+                              fake_segs / self.target_trans,
+                              target_segs / self.target_trans)
+
             fig.savefig('%s/%d.png' % (image_dir, batch_i))
+
+
+        wb.save('%s/Areas.xls' % (image_dir))

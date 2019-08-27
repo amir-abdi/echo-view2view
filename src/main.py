@@ -11,7 +11,7 @@ matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 
-plt.switch_backend('agg')
+# plt.switch_backend('agg')
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_string('gpu', '0', 'Comma separated list of GPU cores to use for training.')
@@ -20,6 +20,7 @@ flags.DEFINE_string('config', None, 'Config file for training hyper-parameters.'
 flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
 flags.DEFINE_string('wandb_resume_id', None, 'Resume wandb process with the given id')
 flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
+flags.DEFINE_string('seg_load', None, 'Path to load the segmentation model')
 flags.mark_flag_as_required('dataset_path')
 flags.mark_flag_as_required('config')
 
@@ -75,7 +76,7 @@ def main(argv):
         model.load_model(FLAGS.ckpt_load)
 
     if FLAGS.test:
-        model.test()
+        model.test(FLAGS.seg_load)
     else:
         model.train()
 
