@@ -321,8 +321,10 @@ class PatchGAN:
     def get_LV_lenght(self, mask):
         from scipy.ndimage import rotate
         mask = mask.astype('uint8')
-        deg = self.rotate_degree(mask)
-        mask = rotate(mask, deg)
+        deg = 0
+        if self.config['ROTATATION_FOR_APICAL_MATCH'] == True:
+            deg = self.rotate_degree(mask)
+            mask = rotate(mask, deg)
         horizontal_sum = np.sum(mask > 0, axis=1)
         L_lenght = np.max(np.where(horizontal_sum > 0)) - np.min(np.where(horizontal_sum > 0))
         return mask, deg, L_lenght
