@@ -6,12 +6,14 @@ from PIL import Image
 from prefetch_generator import background
 from keras.preprocessing.image import ImageDataGenerator
 import random
-NUM_PREFETCH = 10
 
-random_seed = 7
+NUM_PREFETCH = 10
+RANDOM_SEED = 7
+
 
 class DataLoaderCamus:
-    def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio, valid_ratio,
+    def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio,
+                 valid_ratio,
                  labels, augment):
         self.dataset_path = dataset_path
         self.img_res = tuple(img_res)
@@ -22,7 +24,7 @@ class DataLoaderCamus:
         self.augment = augment
 
         patients = sorted(glob(os.path.join(self.dataset_path, 'training', '*')))
-        random.Random(random_seed).shuffle(patients)
+        random.Random(RANDOM_SEED).shuffle(patients)
         num = len(patients)
         num_train = int(num * train_ratio)
         valid_num = int(num_train * valid_ratio)
@@ -34,6 +36,9 @@ class DataLoaderCamus:
         print('#train:', len(self.train_patients))
         print('#valid:', len(self.valid_patients))
         print('#test:', len(self.test_patients))
+
+        print('Consistency check - First valid sample:', self.valid_patients[0])
+        print('Consistency check - First test sample:', self.test_patients[0])
 
         all_labels = {0, 1, 2, 3}
         self.not_labels = all_labels - set(labels)
@@ -77,7 +82,7 @@ class DataLoaderCamus:
 
         for i in range(num_batches):
             batch_paths = np.random.choice(paths, size=batch_size)
-            target_imgs, target_imgs_gt, input_imgs, _= self._get_batch(batch_paths, stage)
+            target_imgs, target_imgs_gt, input_imgs, _ = self._get_batch(batch_paths, stage)
             target_imgs = target_imgs * self.target_rescale
             input_imgs = input_imgs * self.input_rescale
 
