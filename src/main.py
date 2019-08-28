@@ -55,7 +55,8 @@ def main(argv):
         target_rescale=config['TARGET_TRANS'],
         input_rescale=config['INPUT_TRANS'],
         labels=config['LABELS'],
-        train_ratio=0.05,
+        train_ratio = 0.8,
+        valid_ratio=0.05, # Ratio of training data used for validation
         augment=augmentation
     )
 

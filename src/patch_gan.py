@@ -378,7 +378,7 @@ class PatchGAN:
 
         cnt = 1
         for batch_i, (targets, targets_seg_gt, inputs, inputs_seg_gt) in enumerate(
-                self.data_loader.get_iterative_batch(2, stage='valid')):
+                self.data_loader.get_iterative_batch(2, stage='test')):
             # generate fake target image
             fake_imgs = self.generator.predict(inputs)
 

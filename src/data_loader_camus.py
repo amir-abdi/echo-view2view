@@ -11,7 +11,7 @@ NUM_PREFETCH = 10
 random_seed = 7
 
 class DataLoaderCamus:
-    def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio,
+    def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio, valid_ratio,
                  labels, augment):
         self.dataset_path = dataset_path
         self.img_res = tuple(img_res)
@@ -24,10 +24,13 @@ class DataLoaderCamus:
         patients = sorted(glob(os.path.join(self.dataset_path, 'training', '*')))
         random.Random(random_seed).shuffle(patients)
         num = len(patients)
-        num_train = int(num * (1 - train_ratio))
-        self.train_patients = patients[:num_train]
-        self.valid_patients = patients[num_train:]
-        self.test_patients = glob(os.path.join(self.dataset_path, 'testing', '*'))
+        num_train = int(num * train_ratio)
+        valid_num = int(num_train * valid_ratio)
+
+        self.valid_patients = patients[:valid_num]
+        self.train_patients = patients[valid_num:num_train]
+        self.test_patients = patients[num_train:]
+        # self.test_patients = glob(os.path.join(self.dataset_path, 'testing', '*'))
         print('#train:', len(self.train_patients))
         print('#valid:', len(self.valid_patients))
         print('#test:', len(self.test_patients))

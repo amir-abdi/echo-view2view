@@ -126,3 +126,4 @@ venv.bak/
 .requirements.txt.swp
 Run.txt
 /configs/config.json
+/Others
