@@ -16,12 +16,6 @@ flags.mark_flag_as_required('mode')
 FLAGS = flags.FLAGS
 train_ratio = 0.8
 
-
-
-
-# dataset_path='/media/mohammadj/53f67744-2e22-44e6-99e3-fa5719d1486d1/Unify_Data/Public_Camus'
-# dataset_path = '/mnt/rcl-DGX/mohammadj/MyData/ViewViewConvert/Data'
-
 def main(argv):
     dataset_path = FLAGS.dataset_path
     mode = FLAGS.mode
