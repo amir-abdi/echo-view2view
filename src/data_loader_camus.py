@@ -12,9 +12,8 @@ RANDOM_SEED = 7
 
 
 class DataLoaderCamus:
-    def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale, input_rescale, train_ratio,
-                 valid_ratio,
-                 labels, augment):
+    def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale,
+                 input_rescale, train_ratio, valid_ratio, labels, augment):
         self.dataset_path = dataset_path
         self.img_res = tuple(img_res)
         self.target_rescale = target_rescale
@@ -32,11 +31,10 @@ class DataLoaderCamus:
         self.valid_patients = patients[:valid_num]
         self.train_patients = patients[valid_num:num_train]
         self.test_patients = patients[num_train:]
-        # self.test_patients = glob(os.path.join(self.dataset_path, 'testing', '*'))
+
         print('#train:', len(self.train_patients))
         print('#valid:', len(self.valid_patients))
         print('#test:', len(self.test_patients))
-
         print('Consistency check - First valid sample:', self.valid_patients[0])
         print('Consistency check - First test sample:', self.test_patients[0])
 
