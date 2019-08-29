@@ -8,10 +8,9 @@ from keras.layers import Input
 from keras.models import Model, model_from_json
 from keras.optimizers import Adam
 from keras import backend as K
-from keras.optimizers import tf
 
 from models import Discriminator, Generator, loss_dice_coefficient_error
-from utils import gen_fig, gen_fig_seg
+from utils import gen_fig, gen_fig_seg, fill_and_get_LCC, get_LV_lenght
 
 RESULT_DIR = 'results'
 VAL_DIR = 'val_images'
@@ -38,6 +37,7 @@ class PatchGAN:
         # scaling
         self.target_trans = config['TARGET_TRANS']
         self.input_trans = config['INPUT_TRANS']
+        self.rotate_match = self.config['ROTATION_FOR_APICAL_MATCH']
 
         # Input images and their conditioning images
         self.conditional_d = config.get('CONDITIONAL_DISCRIMINATOR', False)
@@ -232,8 +232,7 @@ class PatchGAN:
 
     def gen_valid_results(self, step_num, prefix=''):
         path = '%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR)
-        if not os.path.exists(path):
-            os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
 
         targets, targets_gt, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
         if self.config['TYPE'] == 'Segmentation':
@@ -241,8 +240,7 @@ class PatchGAN:
             fig = gen_fig(inputs / self.input_trans,
                           seg_pred / self.target_trans,
                           targets_gt / self.target_trans)
-
-        if self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
+        elif self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
             fake_imgs = self.generator.predict(inputs)
             fig = gen_fig(inputs / self.input_trans,
                           fake_imgs / self.target_trans,
@@ -267,11 +265,7 @@ class PatchGAN:
 
     def save_model(self):
         model_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, MODELS_DIR)
-        print(model_dir)
-        if not os.path.exists(model_dir):
-            os.makedirs(model_dir)
-
-        # os.makedirs(model_dir, exist_ok=True)
+        os.makedirs(model_dir, exist_ok=True)
 
         def save(model, model_name):
             model_json_path = '%s/%s.json' % (model_dir, model_name)
@@ -291,56 +285,15 @@ class PatchGAN:
             save(self.discriminator, 'discriminator')
         print('Model saved in {}'.format(model_dir))
 
-    @staticmethod
-    def rotate_degree(mask):
-        from scipy import ndimage
-        import math
-        [COG_x, COG_y] = ndimage.measurements.center_of_mass(
-            mask)  # returns tuple: x,y => first vertical second horizontal
-        horizontal_sum = np.sum(mask > 0, axis=1)
-        top_x = np.min(np.where(horizontal_sum > 0))
-        top_y = np.median(np.where(mask[top_x, :] != 0))
-
-        degree = np.arctan((COG_y - top_y) / (COG_x - top_x))
-        return -math.degrees(degree)
-
-    @staticmethod
-    def fill_and_get_LCC(seg):  # binary fill and get largest connected component
-        from scipy.ndimage.morphology import binary_fill_holes
-        from skimage.measure import label
-        seg[seg >= 0.5] = 1
-        seg[seg < 0.5] = 0
-        seg = binary_fill_holes(seg)
-        seg = np.uint8(seg)
-        if np.sum(seg) > 0:
-            labels = label(seg)
-            largestCC = labels == np.argmax(np.bincount(labels.flat, weights=seg.flat))
-            return largestCC
-        return -1
-
-    def get_LV_lenght(self, mask):
-        from scipy.ndimage import rotate
-        mask = mask.astype('uint8')
-        deg = 0
-        if self.config['ROTATION_FOR_APICAL_MATCH']:
-            deg = self.rotate_degree(mask)
-            mask = rotate(mask, deg)
-        horizontal_sum = np.sum(mask > 0, axis=1)
-        # L_lenght = np.max(np.where(horizontal_sum > 0)) - np.min(np.where(horizontal_sum > 0))
-        horizontal_sum[horizontal_sum > 0] = 1
-        L_lenght = np.sum(horizontal_sum)
-
-        return mask, deg, L_lenght
-
     def match_apical(self, input_gt, target_gt, target_real, target_fake):
         """match ap2 and ap4 based on LV length and calculate the difference in area"""
 
         import cv2
         from scipy.ndimage import rotate
-        _, _, L_igt = self.get_LV_lenght(input_gt)
-        target_real, deg_tr, L_tr = self.get_LV_lenght(target_real)
-        target_fake, deg_tf, L_tf = self.get_LV_lenght(target_fake)
-        target_gt, deg_tgt, L_tgt = self.get_LV_lenght(target_gt)
+        _, _, L_igt = get_LV_lenght(input_gt, self.rotate_match)
+        target_real, deg_tr, L_tr = get_LV_lenght(target_real, self.rotate_match)
+        target_fake, deg_tf, L_tf = get_LV_lenght(target_fake, self.rotate_match)
+        target_gt, deg_tgt, L_tgt = get_LV_lenght(target_gt, self.rotate_match)
         ratio_tr = L_igt / L_tr
         ratio_tf = L_igt / L_tf
         ratio_tgt = L_igt / L_tgt
@@ -368,9 +321,8 @@ class PatchGAN:
 
         image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
         print(image_dir)
-        if not os.path.exists(image_dir):
-            os.makedirs(image_dir)
-        # os.makedirs(image_dir, exist_ok=True)
+        os.makedirs(image_dir, exist_ok=True)
+
         sheet1.write(0, 0, 'counter')
         sheet1.write(0, 1, 'real_area')
         sheet1.write(0, 2, 'fake_area')
@@ -387,8 +339,8 @@ class PatchGAN:
             target_segs = seg_model.predict(targets)
 
             for i in range(0, fake_segs.shape[0]):
-                mask_fake = self.fill_and_get_LCC(fake_segs[i, :, :, 0])
-                mask_target = self.fill_and_get_LCC(target_segs[i, :, :, 0])
+                mask_fake = fill_and_get_LCC(fake_segs[i, :, :, 0])
+                mask_target = fill_and_get_LCC(target_segs[i, :, :, 0])
                 if len(mask_fake) == 1 or len(mask_target) == 1:
                     print('segmentation model error')
                     sheet1.write(cnt, 0, cnt)
@@ -408,7 +360,6 @@ class PatchGAN:
                 sheet1.write(cnt, 2, np.sum(mask_fake).astype('float64'))
                 sheet1.write(cnt, 3, np.sum(mask_target_gt).astype('float64'))
 
-                # sheet1.write(cnt, 3, abs(np.sum(mask_real) - np.sum(mask_fake)).astype('float64'))
                 cnt = cnt + 1
                 print('test#: %d' % cnt)
 

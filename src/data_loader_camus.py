@@ -104,27 +104,27 @@ class DataLoaderCamus:
 
     def _get_batch(self, paths_batch, stage):
         target_imgs = []
-        input_imgs = []
+        source_imgs = []
         target_imgs_gt = []
-        input_imgs_gt = []
+        source_gt_imgs = []
         for path in paths_batch:
             transform = self.datagen.get_random_transform(img_shape=self.img_res)
             head, patient_id = os.path.split(path)
             target_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name))
-            target_path_gt = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name + '_gt'))
-            input_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
-            input_path_gt = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name + '_gt'))
+            target_gt_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.target_name + '_gt'))
+            source_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
+            source_gt_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name + '_gt'))
 
-            input_img = self.read_mhd(input_path, '_gt' in self.input_name)
-            input_img_gt = self.read_mhd(input_path_gt, 1)
+            source_img = self.read_mhd(source_path, '_gt' in self.input_name)
+            source_gt_img = self.read_mhd(source_gt_path, 1)
             if stage == 'train':
-                input_img = self.datagen.apply_transform(input_img, transform)
-                input_img_gt = self.datagen.apply_transform(input_img_gt, transform)
-            input_imgs.append(input_img)
-            input_imgs_gt.append(input_img_gt)
+                source_img = self.datagen.apply_transform(source_img, transform)
+                source_gt_img = self.datagen.apply_transform(source_gt_img, transform)
+            source_imgs.append(source_img)
+            source_gt_imgs.append(source_gt_img)
 
             target_img = self.read_mhd(target_path, '_gt' in self.target_name)
-            target_img_gt = self.read_mhd(target_path_gt, 1)
+            target_img_gt = self.read_mhd(target_gt_path, 1)
 
             if self.augment['AUG_TARGET'] and stage == 'train':
                 if not self.augment['AUG_SAME_FOR_BOTH']:
@@ -134,4 +134,5 @@ class DataLoaderCamus:
             target_imgs.append(target_img)
             target_imgs_gt.append(target_img_gt)
 
-        return np.array(target_imgs), np.array(target_imgs_gt), np.array(input_imgs), np.array(input_imgs_gt)
+        return np.array(target_imgs), np.array(target_imgs_gt), np.array(source_imgs), np.array(source_gt_imgs)
+
