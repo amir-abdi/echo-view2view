@@ -21,6 +21,7 @@ MODELS_DIR = 'saved_models'
 class PatchGAN:
     def __init__(self, data_loader, config, use_wandb):
         # read configs
+        self.config = config
         self.validate_area = config.get('VALIDATE_WITH_AREA', False)
         self.rotate_match = self.config.get('ROTATION_FOR_APICAL_MATCH', False)
         self.conditional_d = config.get('CONDITIONAL_DISCRIMINATOR', False)
@@ -32,7 +33,6 @@ class PatchGAN:
         self.segmentor = None
 
         # Configure data loader
-        self.config = config
         self.result_name = config['NAME']
         self.data_loader = data_loader
         self.use_wandb = use_wandb
