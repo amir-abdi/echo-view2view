@@ -16,7 +16,7 @@ flags.DEFINE_string('config', None, 'Config file for training hyper-parameters.'
 flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
 flags.DEFINE_string('wandb_resume_id', None, 'Resume wandb process with the given id')
 flags.DEFINE_string('ckpt_load', None, 'Path to load the model')
-flags.DEFINE_string('seg_load', None, 'Path to load the segmentation model')
+flags.DEFINE_string('ckpt_seg_load', None, 'Path to load the segmentation model')
 flags.mark_flag_as_required('dataset_path')
 flags.mark_flag_as_required('config')
 
@@ -57,7 +57,8 @@ def main(argv):
         labels=config['LABELS'],
         train_ratio=0.8,  # Ratio of data used for training
         valid_ratio=0.05,  # Ratio of training data used for validation
-        augment=augmentation
+        augment=augmentation,
+        equalize_lv_length=config.get('EQUALIZE_LV_LENGTH', False)
     )
 
     if FLAGS.use_wandb:
@@ -69,11 +70,10 @@ def main(argv):
     model = PatchGAN(data_loader, config, FLAGS.use_wandb)
 
     # load trained models if they exist
-    if FLAGS.ckpt_load is not None:
-        model.load_model(FLAGS.ckpt_load)
+    model.load_model(FLAGS.ckpt_load, FLAGS.ckpt_seg_load)
 
     if FLAGS.test:
-        model.test(FLAGS.seg_load)
+        model.test()
     else:
         model.train()
 

@@ -6,6 +6,10 @@ from PIL import Image
 from prefetch_generator import background
 from keras.preprocessing.image import ImageDataGenerator
 import random
+import cv2
+
+from utils import get_LV_lenght
+from utils import match_image_size
 
 NUM_PREFETCH = 10
 RANDOM_SEED = 7
@@ -13,7 +17,7 @@ RANDOM_SEED = 7
 
 class DataLoaderCamus:
     def __init__(self, dataset_path, input_name, target_name, img_res, target_rescale,
-                 input_rescale, train_ratio, valid_ratio, labels, augment):
+                 input_rescale, train_ratio, valid_ratio, labels, augment, equalize_lv_length):
         self.dataset_path = dataset_path
         self.img_res = tuple(img_res)
         self.target_rescale = target_rescale
@@ -21,6 +25,7 @@ class DataLoaderCamus:
         self.input_name = input_name
         self.target_name = target_name
         self.augment = augment
+        self.equalize_lv_length = equalize_lv_length
 
         patients = sorted(glob(os.path.join(self.dataset_path, 'training', '*')))
         random.Random(RANDOM_SEED).shuffle(patients)
@@ -80,11 +85,11 @@ class DataLoaderCamus:
 
         for i in range(num_batches):
             batch_paths = np.random.choice(paths, size=batch_size)
-            target_imgs, target_imgs_gt, input_imgs, _ = self._get_batch(batch_paths, stage)
+            target_imgs, target_imgs_gt, input_imgs, input_imgs_gt = self._get_batch(batch_paths, stage)
             target_imgs = target_imgs * self.target_rescale
             input_imgs = input_imgs * self.input_rescale
 
-            yield target_imgs, target_imgs_gt, input_imgs
+            yield target_imgs, target_imgs_gt, input_imgs, input_imgs_gt
 
     def get_iterative_batch(self, batch_size=1, stage='test'):
         paths = self._get_paths(stage)
@@ -115,24 +120,50 @@ class DataLoaderCamus:
             source_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name))
             source_gt_path = os.path.join(path, '{}_{}.mhd'.format(patient_id, self.input_name + '_gt'))
 
+            # get source
             source_img = self.read_mhd(source_path, '_gt' in self.input_name)
             source_gt_img = self.read_mhd(source_gt_path, 1)
             if stage == 'train':
                 source_img = self.datagen.apply_transform(source_img, transform)
                 source_gt_img = self.datagen.apply_transform(source_gt_img, transform)
-            source_imgs.append(source_img)
-            source_gt_imgs.append(source_gt_img)
 
+            # get target
             target_img = self.read_mhd(target_path, '_gt' in self.target_name)
-            target_img_gt = self.read_mhd(target_gt_path, 1)
-
+            target_gt_img = self.read_mhd(target_gt_path, 1)
             if self.augment['AUG_TARGET'] and stage == 'train':
                 if not self.augment['AUG_SAME_FOR_BOTH']:
                     transform = self.datagen.get_random_transform(img_shape=self.img_res)
                 target_img = self.datagen.apply_transform(target_img, transform)
-                target_img_gt = self.datagen.apply_transform(target_img_gt, transform)
-            target_imgs.append(target_img)
-            target_imgs_gt.append(target_img_gt)
+                target_gt_img = self.datagen.apply_transform(target_gt_img, transform)
 
+            # equalize LV height of source to target
+            if self.equalize_lv_length:
+                source_img, source_gt_img = self.equalize_lv(target_gt_img, source_img, source_gt_img)
+
+            # add to list
+            source_imgs.append(source_img)
+            source_gt_imgs.append(source_gt_img)
+            target_imgs.append(target_img)
+            target_imgs_gt.append(target_gt_img)
+
+        np.array(source_imgs)
         return np.array(target_imgs), np.array(target_imgs_gt), np.array(source_imgs), np.array(source_gt_imgs)
 
+    def equalize_lv(self, target_gt_img, source_img, source_gt_img):
+        def resize_img(img, ratio):
+            img = cv2.resize(img, (0, 0), fx=ratio, fy=ratio)
+            img = match_image_size(img, self.img_res)
+            img = np.expand_dims(img, -1)
+            assert img.shape[0] == target_gt_img.shape[0] and img.shape[1] == target_gt_img.shape[1]
+            return img
+
+        # calculate ratio to resize
+        source_lv_length, _, _ = get_LV_lenght(source_gt_img.squeeze(), True)
+        target_lv_length, _, _ = get_LV_lenght(target_gt_img.squeeze(), True)
+        ratio = target_lv_length / source_lv_length
+
+        # resize source image and gt image
+        source_img = resize_img(source_img, ratio)
+        source_gt_img = resize_img(source_gt_img, ratio)
+
+        return source_img, source_gt_img

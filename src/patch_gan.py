@@ -20,6 +20,17 @@ MODELS_DIR = 'saved_models'
 
 class PatchGAN:
     def __init__(self, data_loader, config, use_wandb):
+        # read configs
+        self.validate_area = config.get('VALIDATE_WITH_AREA', False)
+        self.rotate_match = self.config.get('ROTATION_FOR_APICAL_MATCH', False)
+        self.conditional_d = config.get('CONDITIONAL_DISCRIMINATOR', False)
+        self.skip_connections_generator = config.get('SKIP_CONNECTIONS_GENERATOR', False)
+
+        # initialize models
+        self.generator = None
+        self.discriminator = None
+        self.segmentor = None
+
         # Configure data loader
         self.config = config
         self.result_name = config['NAME']
@@ -37,32 +48,25 @@ class PatchGAN:
         # scaling
         self.target_trans = config['TARGET_TRANS']
         self.input_trans = config['INPUT_TRANS']
-        self.rotate_match = self.config['ROTATION_FOR_APICAL_MATCH']
 
         # Input images and their conditioning images
-        self.conditional_d = config.get('CONDITIONAL_DISCRIMINATOR', False)
         input_target = Input(shape=self.img_shape)
         input_input = Input(shape=self.img_shape)
 
         if config['TYPE'] == 'Segmentation':
             self.gf = config['FIRST_LAYERS_FILTERS']
-            self.skipconnections_generator = config['SKIP_CONNECTIONS_GENERATOR']
             self.output_activation = config['GEN_OUTPUT_ACT']
             self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
             self.optimizer_G = Adam(config['LEARNING_RATE_G'], config['ADAM_B1'])
             print('Building segmentation model')
-            self.seg_model = Generator(self.img_shape, self.gf, self.channels, self.output_activation,
-                                       self.skipconnections_generator).build()
-            seg = self.seg_model(input_input)
+            self.segmentor = Generator(self.img_shape, self.gf, self.channels, self.output_activation,
+                                       self.skip_connections_generator).build()
+            seg = self.segmentor(input_input)
             self.combined = Model(inputs=[input_input], outputs=[seg])
             num_gpu = len(K.tensorflow_backend._get_available_gpus())
             if num_gpu > 1:
                 self.combined = multi_gpu_model(self.combined, gpus=num_gpu)
 
-            # self.combined.compile(loss=['mse', 'mae'],
-            #                       optimizer=self.optimizer_G,
-            #                       loss_weights=[config['LOSS_WEIGHT_DISC'],
-            #                                     config['LOSS_WEIGHT_GEN']])
             self.combined.compile(loss=loss_dice_coefficient_error,
                                   optimizer=self.optimizer_G)
 
@@ -76,7 +80,6 @@ class PatchGAN:
             # Number of filters in the first layer of G and D
             self.gf = config['FIRST_LAYERS_FILTERS']
             self.df = config['FIRST_LAYERS_FILTERS']
-            self.skipconnections_generator = config['SKIP_CONNECTIONS_GENERATOR']
             self.output_activation = config['GEN_OUTPUT_ACT']
             self.decay_factor_G = config['LR_EXP_DECAY_FACTOR_G']
             self.decay_factor_D = config['LR_EXP_DECAY_FACTOR_D']
@@ -92,7 +95,7 @@ class PatchGAN:
             # Build the generator
             print('Building generator')
             self.generator = Generator(self.img_shape, self.gf, self.channels, self.output_activation,
-                                       self.skipconnections_generator).build()
+                                       self.skip_connections_generator).build()
 
             # Turn of discriminator training for the combined model (i.e. generator)
             fake_img = self.generator(input_input)
@@ -117,13 +120,7 @@ class PatchGAN:
                                       loss_weights=[config['LOSS_WEIGHT_DISC'],
                                                     config['LOSS_WEIGHT_GEN']])
             if config['TYPE'] == 'PatchGAN_Constrained':
-                seg_model_name = 'results/Basic_4CH_ED_4CH_ED_gt_01/saved_models/segmentation_model'
-                with open(seg_model_name + '.json', 'r') as f:
-                    self.seg_model = model_from_json(f.read())
-                self.seg_model.load_weights(seg_model_name + '_weights.hdf5')
-                self.seg_model.name = 'segmentation_model'
-
-                valid_seg = self.seg_model(fake_img)
+                valid_seg = self.segmentor(fake_img)
 
                 # with tf.device('/cpu:0'):
                 self.combined = Model(inputs=[input_input], outputs=[valid, fake_img, valid_seg])
@@ -167,7 +164,7 @@ class PatchGAN:
             print('PatchGAN valid shape:', valid.shape)
 
         while self.step < max_iter:
-            for targets, targets_gt, inputs in self.data_loader.get_random_batch(batch_size):
+            for targets, targets_gt, inputs, _ in self.data_loader.get_random_batch(batch_size):
 
                 # ----------- Train Segmentation Model -----------
                 if self.config['TYPE'] == 'Segmentation':
@@ -233,35 +230,68 @@ class PatchGAN:
     def gen_valid_results(self, step_num, prefix=''):
         path = '%s/%s/%s' % (RESULT_DIR, self.result_name, VAL_DIR)
         os.makedirs(path, exist_ok=True)
+        data_loader_function = self.data_loader.get_iterative_batch
+        area_validation_accuracy = 0
+        segmenter_error = 0
 
-        targets, targets_gt, inputs = next(self.data_loader.get_random_batch(batch_size=3, stage='valid'))
-        if self.config['TYPE'] == 'Segmentation':
-            seg_pred = self.seg_model.predict(inputs)
-            fig = gen_fig(inputs / self.input_trans,
-                          seg_pred / self.target_trans,
-                          targets_gt / self.target_trans)
-        elif self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
-            fake_imgs = self.generator.predict(inputs)
-            fig = gen_fig(inputs / self.input_trans,
-                          fake_imgs / self.target_trans,
-                          targets / self.target_trans)
+        for batch_i, (targets, targets_gt, inputs, _) in enumerate(data_loader_function(3, stage='valid')):
+            if self.config['TYPE'] == 'Segmentation':
+                seg_pred = self.segmentor.predict(inputs)
+                fig = gen_fig(inputs / self.input_trans,
+                              seg_pred / self.target_trans,
+                              targets_gt / self.target_trans)
+            elif self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
+                fake_imgs = self.generator.predict(inputs)
+                fig = gen_fig(inputs / self.input_trans,
+                              fake_imgs / self.target_trans,
+                              targets / self.target_trans)
 
-        fig.savefig('%s/%s/%s/%s_%d.png' % (RESULT_DIR, self.result_name, VAL_DIR, prefix, step_num))
+                if self.validate_area:
+                    fake_segs = self.segmentor.predict(fake_imgs)
+                    real_segs = self.segmentor.predict(targets)
 
+                    fake_seg_area = np.sum(fake_segs, axis=(1, 2))
+                    real_seg_area = np.sum(real_segs, axis=(1, 2))
+                    gt_area = np.sum(targets_gt, axis=(1, 2))
+                    # print(fake_seg_area[0])
+                    # print(real_seg_area[0])
+                    # print(gt_area[0])
+                    # print('acc', (1 - np.abs(fake_seg_area - gt_area) / gt_area)[0])
+                    # print('error', (1 - np.abs(real_seg_area - gt_area) / gt_area)[0])
+                    area_validation_accuracy += (1 - np.abs(fake_seg_area - gt_area) / gt_area).mean()
+                    segmenter_error += (np.abs(real_seg_area - gt_area) / gt_area).mean()
+
+            fig.savefig('%s/%s/%s/%s_%d_%d.png' % (RESULT_DIR, self.result_name, VAL_DIR, prefix, step_num, batch_i))
+
+            if self.use_wandb:
+                import wandb
+                wandb.log({'val_image_{}'.format(batch_i): fig}, step=self.step)
+
+        area_validation_accuracy /= (batch_i + 1)
+        segmenter_error /= (batch_i + 1)
+        print('area_validation_acc={}  ~  segmenter_error={}'.format(area_validation_accuracy,
+                                                                     segmenter_error))
         if self.use_wandb:
             import wandb
-            wandb.log({'val_image': fig}, step=self.step)
+            wandb.log({'valid_area_acc': area_validation_accuracy,
+                       'valid_segmenter_error': segmenter_error})
 
-    def load_model(self, root_model_path):
-        self.generator.load_weights(os.path.join(root_model_path, 'generator_weights.hdf5'))
-        self.discriminator.load_weights(os.path.join(root_model_path, 'discriminator_weights.hdf5'))
+    def load_model(self, root_model_path=None, segmentation_model_path=None):
+        if root_model_path is not None:
+            self.generator.load_weights(os.path.join(root_model_path, 'generator_weights.hdf5'))
+            self.discriminator.load_weights(os.path.join(root_model_path, 'discriminator_weights.hdf5'))
+            generator_json = json.load(open(os.path.join(root_model_path, 'generator.json')))
+            discriminator_json = json.load(open(os.path.join(root_model_path, 'discriminator.json')))
+            self.step = generator_json['iter']
+            assert self.step == discriminator_json['iter']
+            print('Model loaded: {} @{}'.format(root_model_path, self.step))
 
-        generator_json = json.load(open(os.path.join(root_model_path, 'generator.json')))
-        discriminator_json = json.load(open(os.path.join(root_model_path, 'discriminator.json')))
-        self.step = generator_json['iter']
-        assert self.step == discriminator_json['iter']
-
-        print('Weights loaded: {} @{}'.format(root_model_path, self.step))
+        if segmentation_model_path is not None:
+            with open(os.path.join(segmentation_model_path, 'segmentation_model.json'), 'r') as json_file:
+                loaded_model_json = json_file.read()
+            self.segmentor = model_from_json(loaded_model_json)
+            self.segmentor.load_weights(os.path.join(segmentation_model_path, 'segmentation_model_weights.hdf5'))
+            print('Segmentation Model loaded: {}'.format(segmentation_model_path))
 
     def save_model(self):
         model_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, MODELS_DIR)
@@ -279,7 +309,7 @@ class PatchGAN:
             model.save_weights(options['file_weight'])
 
         if self.config['TYPE'] == 'Segmentation':
-            save(self.seg_model, 'segmentation_model')
+            save(self.segmentor, 'segmentation_model')
         if self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
             save(self.generator, 'generator')
             save(self.discriminator, 'discriminator')
@@ -290,10 +320,10 @@ class PatchGAN:
 
         import cv2
         from scipy.ndimage import rotate
-        _, _, L_igt = get_LV_lenght(input_gt, self.rotate_match)
-        target_real, deg_tr, L_tr = get_LV_lenght(target_real, self.rotate_match)
-        target_fake, deg_tf, L_tf = get_LV_lenght(target_fake, self.rotate_match)
-        target_gt, deg_tgt, L_tgt = get_LV_lenght(target_gt, self.rotate_match)
+        L_igt, _, _ = get_LV_lenght(input_gt, self.rotate_match)
+        L_tr, target_real, deg_tr = get_LV_lenght(target_real, self.rotate_match)
+        L_tf, target_fake, deg_tf = get_LV_lenght(target_fake, self.rotate_match)
+        L_tgt, target_gt, deg_tgt = get_LV_lenght(target_gt, self.rotate_match)
         ratio_tr = L_igt / L_tr
         ratio_tf = L_igt / L_tf
         ratio_tgt = L_igt / L_tgt
@@ -308,16 +338,10 @@ class PatchGAN:
 
         return target_real, target_fake, target_gt
 
-    def test(self, seg_load_addr):
+    def test(self):
         from xlwt import Workbook
         wb = Workbook()
         sheet1 = wb.add_sheet('Area')
-        # seg_model = load_model(seg_load_addr + '/AP{}_Seg.h5'.format(self.config['TARGET_NAME'][0]))
-        json_file = open(os.path.join(seg_load_addr, 'segmentation_model.json'), 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        seg_model = model_from_json(loaded_model_json)
-        seg_model.load_weights(os.path.join(seg_load_addr, 'segmentation_model_weights.hdf5'))
 
         image_dir = '%s/%s/%s' % (RESULT_DIR, self.result_name, TEST_DIR)
         print(image_dir)
@@ -335,8 +359,8 @@ class PatchGAN:
             fake_imgs = self.generator.predict(inputs)
 
             # estimate the segmentation mask for real (target) and fake
-            fake_segs = seg_model.predict(fake_imgs)
-            target_segs = seg_model.predict(targets)
+            fake_segs = self.segmentor.predict(fake_imgs)
+            target_segs = self.segmentor.predict(targets)
 
             for i in range(0, fake_segs.shape[0]):
                 mask_fake = fill_and_get_LCC(fake_segs[i, :, :, 0])

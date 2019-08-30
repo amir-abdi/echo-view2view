@@ -46,8 +46,8 @@ def gen_fig_seg(inputs, generated, targets, fake_segs, targets_seg, target_seg_g
 def rotate_degree(mask):
     from scipy import ndimage
     import math
-    [COG_x, COG_y] = ndimage.measurements.center_of_mass(
-        mask)  # returns tuple: x,y => first vertical second horizontal
+    # returns tuple: x,y => first vertical second horizontal
+    [COG_x, COG_y] = ndimage.measurements.center_of_mass(mask)
     horizontal_sum = np.sum(mask > 0, axis=1)
     top_x = np.min(np.where(horizontal_sum > 0))
     top_y = np.median(np.where(mask[top_x, :] != 0))
@@ -81,4 +81,27 @@ def get_LV_lenght(mask, match_apical_length):
     horizontal_sum[horizontal_sum > 0] = 1
     L_lenght = np.sum(horizontal_sum)
 
-    return mask, deg, L_lenght
+    return L_lenght, mask, deg
+
+
+def match_image_size(img, size):
+    h, w = size
+    imh, imw = img.shape
+
+    if h == imh and w == imw:
+        return img
+
+    if h < imh and w < imw:
+        diffh = imh - h
+        diffw = imw - w
+        return img[int(diffh / 2):int(imh - diffh / 2), int(diffw / 2):int(imw - diffw / 2)]
+
+    if h > imh and w > imw:
+        import cv2
+        new_img = cv2.copyMakeBorder(img,
+                                     int((h - imh) / 2) + (imh % 2), int((h - imh) / 2),
+                                     int((w - imw) / 2) + (imh % 2), int((w - imw) / 2),
+                                     cv2.BORDER_REFLECT)
+        return new_img
+
+
