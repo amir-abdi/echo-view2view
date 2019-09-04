@@ -21,6 +21,16 @@ def gen_fig(inputs, generated, targets):
 
 
 def gen_fig_seg(inputs, generated, targets, fake_segs, targets_seg, target_seg_gt):
+    """
+
+    :param inputs:
+    :param generated:
+    :param targets:
+    :param fake_segs:
+    :param targets_seg:
+    :param target_seg_gt:
+    :return:
+    """
     r, c = 3, 4
     titles_even = ['Condition', 'Generated', 'Original']
     titles_odd = ['GT_Seg', 'Generated_Seg', 'Original_Seg']
@@ -44,9 +54,15 @@ def gen_fig_seg(inputs, generated, targets, fake_segs, targets_seg, target_seg_g
 
 
 def rotate_degree(mask):
+    """
+
+    :param mask:
+    :return:
+    """
     from scipy import ndimage
     import math
     # returns tuple: x,y => first vertical second horizontal
+    mask = np.squeeze(mask)
     [COG_x, COG_y] = ndimage.measurements.center_of_mass(mask)
     horizontal_sum = np.sum(mask > 0, axis=1)
     top_x = np.min(np.where(horizontal_sum > 0))
@@ -56,7 +72,12 @@ def rotate_degree(mask):
     return -math.degrees(degree)
 
 
-def fill_and_get_LCC(seg):  # binary fill and get largest connected component
+def fill_and_get_LCC(seg):
+    """
+    binary fill and get largest connected component
+    :param seg:
+    :return:
+    """
     from scipy.ndimage.morphology import binary_fill_holes
     from skimage.measure import label
     seg[seg >= 0.5] = 1
@@ -70,11 +91,11 @@ def fill_and_get_LCC(seg):  # binary fill and get largest connected component
     return -1
 
 
-def get_LV_lenght(mask, match_apical_length):
+def get_LV_lenght(mask, rotate_match):
     from scipy.ndimage import rotate
     mask = mask.astype('uint8')
     deg = 0
-    if match_apical_length:
+    if rotate_match:
         deg = rotate_degree(mask)
         mask = rotate(mask, deg)
     horizontal_sum = np.sum(mask > 0, axis=1)

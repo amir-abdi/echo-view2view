@@ -233,6 +233,8 @@ class PatchGAN:
         data_loader_function = self.data_loader.get_iterative_batch
         area_validation_accuracy = 0
         segmenter_error = 0
+        length_validation_accuracy = 0
+        length_error = 0
 
         for batch_i, (targets, targets_gt, inputs, _) in enumerate(data_loader_function(3, stage='valid')):
             if self.config['TYPE'] == 'Segmentation':
@@ -253,13 +255,14 @@ class PatchGAN:
                     fake_seg_area = np.sum(fake_segs, axis=(1, 2))
                     real_seg_area = np.sum(real_segs, axis=(1, 2))
                     gt_area = np.sum(targets_gt, axis=(1, 2))
-                    # print(fake_seg_area[0])
-                    # print(real_seg_area[0])
-                    # print(gt_area[0])
-                    # print('acc', (1 - np.abs(fake_seg_area - gt_area) / gt_area)[0])
-                    # print('error', (1 - np.abs(real_seg_area - gt_area) / gt_area)[0])
                     area_validation_accuracy += (1 - np.abs(fake_seg_area - gt_area) / gt_area).mean()
                     segmenter_error += (np.abs(real_seg_area - gt_area) / gt_area).mean()
+
+                    fake_lv_length, _, _ = get_LV_lenght(fake_segs, rotate_match=False)
+                    real_lv_length, _, _ = get_LV_lenght(real_segs, rotate_match=False)
+                    gt_lv_length, _, _ = get_LV_lenght(targets_gt, rotate_match=False)
+                    length_validation_accuracy += (1 - np.abs(fake_lv_length - gt_lv_length) / gt_lv_length).mean()
+                    length_error += (1 - np.abs(real_lv_length - gt_lv_length) / gt_lv_length).mean()
 
             fig.savefig('%s/%s/%s/%s_%d_%d.png' % (RESULT_DIR, self.result_name, VAL_DIR, prefix, step_num, batch_i))
 
@@ -269,12 +272,17 @@ class PatchGAN:
 
         area_validation_accuracy /= (batch_i + 1)
         segmenter_error /= (batch_i + 1)
+        length_validation_accuracy /= (batch_i + 1)
+        length_error /= (batch_i + 1)
         print('area_validation_acc={}  ~  segmenter_error={}'.format(area_validation_accuracy,
                                                                      segmenter_error))
         if self.use_wandb:
             import wandb
             wandb.log({'valid_area_acc': area_validation_accuracy,
-                       'valid_segmenter_error': segmenter_error})
+                       'valid_segmenter_error': segmenter_error,
+                       'valid_lv_length_acc': length_validation_accuracy,
+                       'valid_lv_length_error': length_error
+                       })
 
     def load_model(self, root_model_path=None, segmentation_model_path=None):
         if root_model_path is not None:
@@ -315,7 +323,7 @@ class PatchGAN:
             save(self.discriminator, 'discriminator')
         print('Model saved in {}'.format(model_dir))
 
-    def match_apical(self, input_gt, target_gt, target_real, target_fake):
+    def match_apical(self, input_gt, target_gt, target_real, target_fake, resize=True):
         """match ap2 and ap4 based on LV length and calculate the difference in area"""
 
         import cv2
@@ -324,13 +332,17 @@ class PatchGAN:
         L_tr, target_real, deg_tr = get_LV_lenght(target_real, self.rotate_match)
         L_tf, target_fake, deg_tf = get_LV_lenght(target_fake, self.rotate_match)
         L_tgt, target_gt, deg_tgt = get_LV_lenght(target_gt, self.rotate_match)
+
+        L_igt = 70
+
         ratio_tr = L_igt / L_tr
         ratio_tf = L_igt / L_tf
         ratio_tgt = L_igt / L_tgt
 
-        target_real = cv2.resize(target_real, (0, 0), fx=ratio_tr, fy=ratio_tr)
-        target_fake = cv2.resize(target_fake, (0, 0), fx=ratio_tf, fy=ratio_tf)
-        target_gt = cv2.resize(target_gt, (0, 0), fx=ratio_tgt, fy=ratio_tgt)
+        if resize:
+            target_real = cv2.resize(target_real, (0, 0), fx=ratio_tr, fy=ratio_tr)
+            target_fake = cv2.resize(target_fake, (0, 0), fx=ratio_tf, fy=ratio_tf)
+            target_gt = cv2.resize(target_gt, (0, 0), fx=ratio_tgt, fy=ratio_tgt)
 
         target_real = rotate(target_real, -deg_tr)
         target_fake = rotate(target_fake, -deg_tf)
@@ -378,7 +390,8 @@ class PatchGAN:
                 mask_real, mask_fake, mask_target_gt = self.match_apical(inputs_seg_gt[i, :, :, 0].copy(),
                                                                          targets_seg_gt[i, :, :, 0].copy(),
                                                                          target_segs[i, :, :, 0].copy(),
-                                                                         fake_segs[i, :, :, 0].copy())
+                                                                         fake_segs[i, :, :, 0].copy(),
+                                                                         resize=True)
                 sheet1.write(cnt, 0, cnt)
                 sheet1.write(cnt, 1, np.sum(mask_real).astype('float64'))
                 sheet1.write(cnt, 2, np.sum(mask_fake).astype('float64'))

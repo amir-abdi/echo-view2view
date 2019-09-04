@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
-flags.DEFINE_string('gpu', '0', 'Comma separated list of GPU cores to use for training.')
+flags.DEFINE_string('gpu', None, 'Comma separated list of GPU cores to use for training.')
 flags.DEFINE_boolean('test', False, 'Test model and generate outputs on the test set')
 flags.DEFINE_string('config', None, 'Config file for training hyper-parameters.')
 flags.DEFINE_boolean('use_wandb', False, 'Use wandb for logging')
@@ -27,7 +27,11 @@ def main(argv):
     # Load configs from file
     config = json.load(open(FLAGS.config))
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
+    if config.get("VALIDATE_WITH_AREA", False):
+        assert FLAGS.ckpt_seg_load is not None, 'To validate with area, trained segmenter should be specified.'
+
+    if FLAGS.gpu is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
     from keras.optimizers import tf
     cf = tf.ConfigProto()
     cf.gpu_options.allow_growth = True
