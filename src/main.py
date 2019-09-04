@@ -7,7 +7,7 @@ from data_loader_camus import DataLoaderCamus
 from patch_gan import PatchGAN
 import matplotlib
 
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 
 flags.DEFINE_string('dataset_path', None, 'Path of the dataset.')
 flags.DEFINE_string('gpu', None, 'Comma separated list of GPU cores to use for training.')

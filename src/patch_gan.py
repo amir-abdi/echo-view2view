@@ -199,6 +199,10 @@ class PatchGAN:
                     else:
                         combined_targets = [valid, targets, targets_gt]
 
+                    if self.config['MASK_TO_MASK']:
+                        combined_inputs = [inputs_gt]
+                        combined_targets = [valid, targets_gt]
+
                     #  ---------- Train Generator -----------
                     g_loss = self.combined.train_on_batch(combined_inputs, combined_targets)
 
@@ -236,13 +240,17 @@ class PatchGAN:
         length_validation_accuracy = 0
         length_error = 0
 
-        for batch_i, (targets, targets_gt, inputs, _) in enumerate(data_loader_function(3, stage='valid')):
+        for batch_i, (targets, targets_gt, inputs, inputs_gt) in enumerate(data_loader_function(3, stage='valid')):
             if self.config['TYPE'] == 'Segmentation':
                 seg_pred = self.segmentor.predict(inputs)
                 fig = gen_fig(inputs / self.input_trans,
                               seg_pred / self.target_trans,
                               targets_gt / self.target_trans)
             elif self.config['TYPE'] in ['PatchGAN', 'PatchGAN_Constrained']:
+                if self.config['MASK_TO_MASK']:
+                    inputs = inputs_gt
+                    targets = targets_gt
+
                 fake_imgs = self.generator.predict(inputs)
                 fig = gen_fig(inputs / self.input_trans,
                               fake_imgs / self.target_trans,
