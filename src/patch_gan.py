@@ -164,7 +164,7 @@ class PatchGAN:
             print('PatchGAN valid shape:', valid.shape)
 
         while self.step < max_iter:
-            for targets, targets_gt, inputs, _ in self.data_loader.get_random_batch(batch_size):
+            for targets, targets_gt, inputs, inputs_gt in self.data_loader.get_random_batch(batch_size):
 
                 # ----------- Train Segmentation Model -----------
                 if self.config['TYPE'] == 'Segmentation':
