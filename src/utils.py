@@ -1,22 +1,31 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
-plt.switch_backend('agg')
 
-
-def gen_fig(inputs, generated, targets):
-    r, c = 3, 3
+def gen_fig(inputs, generated, targets, return_all_imgs=False, batch_size=3):
+    plt.switch_backend('agg')
+    r, c = 3, batch_size
     titles = ['Condition', 'Generated', 'Original']
     all_imgs = np.concatenate([inputs, generated, targets])
+    imgs = []
 
     fig, axs = plt.subplots(r, c)
     cnt = 0
     for i in range(r):
         for j in range(c):
-            axs[i, j].imshow(all_imgs[cnt, :, :, 0], cmap='gray')
+            img_normalized = (all_imgs[cnt, :, :, 0] / all_imgs[cnt, :, :, 0].max()) * 255.0
+            axs[i, j].imshow(img_normalized, cmap='gray')
             axs[i, j].set_title(titles[i], fontdict={'fontsize': 8})
             axs[i, j].axis('off')
             cnt += 1
+
+            if return_all_imgs:
+                img = Image.fromarray(img_normalized)
+                imgs.append({'img': img.convert('L'),
+                            'name': titles[i] + str(j)})
+    if return_all_imgs:
+        return fig, imgs
     return fig
 
 

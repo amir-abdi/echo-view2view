@@ -333,8 +333,6 @@ class PatchGAN:
         L_tf, target_fake, deg_tf = get_LV_lenght(target_fake, self.rotate_match)
         L_tgt, target_gt, deg_tgt = get_LV_lenght(target_gt, self.rotate_match)
 
-        L_igt = 70
-
         ratio_tr = L_igt / L_tr
         ratio_tf = L_igt / L_tf
         ratio_tgt = L_igt / L_tgt
@@ -365,6 +363,7 @@ class PatchGAN:
         sheet1.write(0, 3, 'gt_area')
 
         cnt = 1
+        counter_results = 1
         for batch_i, (targets, targets_seg_gt, inputs, inputs_seg_gt) in enumerate(
                 self.data_loader.get_iterative_batch(2, stage='test')):
             # generate fake target image
@@ -391,11 +390,20 @@ class PatchGAN:
                                                                          targets_seg_gt[i, :, :, 0].copy(),
                                                                          target_segs[i, :, :, 0].copy(),
                                                                          fake_segs[i, :, :, 0].copy(),
-                                                                         resize=True)
+                                                                         resize=False)
+
+                target_segs_lv_length, _, _ = get_LV_lenght(mask_real, rotate_match=False)
+                fake_segs_lv_length, _, _ = get_LV_lenght(mask_fake, rotate_match=False)
+                targets_seg_gt_lv_length, _, _ = get_LV_lenght(mask_target_gt, rotate_match=False)
+
                 sheet1.write(cnt, 0, cnt)
                 sheet1.write(cnt, 1, np.sum(mask_real).astype('float64'))
                 sheet1.write(cnt, 2, np.sum(mask_fake).astype('float64'))
                 sheet1.write(cnt, 3, np.sum(mask_target_gt).astype('float64'))
+
+                sheet1.write(cnt, 4, target_segs_lv_length.astype('float64'))
+                sheet1.write(cnt, 5, fake_segs_lv_length.astype('float64'))
+                sheet1.write(cnt, 6, targets_seg_gt_lv_length.astype('float64'))
 
                 cnt = cnt + 1
                 print('test#: %d' % cnt)
@@ -408,6 +416,13 @@ class PatchGAN:
                               targets_seg_gt)
 
             fig.savefig('%s/%d.png' % (image_dir, batch_i))
+
+            fig_results, all_imgs = gen_fig(inputs, fake_imgs, targets, return_all_imgs=True, batch_size=2)
+
+            for i, img in enumerate(all_imgs):
+                img['img'].save('%s/%s_%d.png' % (image_dir, img['name'], batch_i))
+                fig_results.savefig('%s/results_%d.png' % (image_dir, batch_i))
+
 
         save_path = '%s/Areas.xls' % image_dir
         wb.save(save_path)
