@@ -1,10 +1,9 @@
 # Echo View Converter with Clinically Valid Constraints   
 
-Code for the paper: 
+Code for the paper: https://arxiv.org/pdf/1912.03120.pdf 
 
 A Study into Echocardiography View Conversion, accepted to MedNeurIPS 2019.
 
-https://arxiv.org/pdf/1912.03120.pdf 
 
 To initiate training, run 
 
@@ -21,7 +20,12 @@ Please refer to the samples in the "sample_configs" folder.
 
 - Bug for discriminator fixed. Now the input and target are not concatenated in the discriminator.
 
-Sample Results:
 
+Abstract:
+
+Transthoracic echo is one of the most common means of cardiac studies in theclinical routines. During the echo exam, the sonographer captures a set of standardcross sections (echo views) of the heart. Each 2D echo view cuts through the 3Dcardiac geometry via a unique plane.  Consequently, different views share somelimited information.  In this work, we investigate the feasibility of generating a2D echo view using another view based on adversarial generative models.  Theobjective  optimized  to  train  the  view-conversion  model  is  based  on  the  ideasintroduced by LSGAN, PatchGAN and Conditional GAN (cGAN). The size andlength of the left ventricle in the generated target echo view is compared againstthat of the target ground-truth to assess the validity of the echo view conversion.Results show that there is a correlation of 0.50 between the LV areas and 0.49between the LV lengths of the generated target frames and the real target frames.
+
+
+Sample Results:
 
 ![Sample Results](https://raw.githubusercontent.com/amir-abdi/echo-view2view/master/samples/Sample%20View%20Conversion%20Results.jpg)
